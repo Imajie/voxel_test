@@ -47,7 +47,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "")
   set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build, options are: None (CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel." FORCE)
 endif ()
  
-set(CMAKE_CXX_FLAGS "-std=c++0x -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wall -O2")
 set(CMAKE_DEBUG_POSTFIX "_d")
  
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/dist")
@@ -132,14 +132,16 @@ set(OGRE_LIBRARIES
 include_directories(include)
 set(HDRS
 	include/BaseApplication.h
-	include/BasicTutorial2.h
+	include/BasicTutorial3.h
 	include/terrainGenerator.h
+	include/perlinNoise.h
 )
  
 set(SRCS
 	src/BaseApplication.cpp
-	src/BasicTutorial2.cpp
+	src/BasicTutorial3.cpp
 	src/terrainGenerator.cpp
+	src/perlinNoise.cpp
 )
  
 include_directories( ${OIS_INCLUDE_DIRS}

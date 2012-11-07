@@ -15,22 +15,18 @@
 class TerrainGenerator
 {
 	public:
-		TerrainGenerator( uint32_t size, float scaleFact ) :
-			_size(size), _scaleFact(scaleFact), heightMap(new float[size*size])
-		{
-			diamondSquare();
-		}
+		TerrainGenerator( uint32_t size, float scaleFact );
 		
 		// get width/height of map
 		uint32_t width() const { return _size; }
 		uint32_t height() const { return _size; }
 
 		// get value of height map at position
-		float get( uint32_t x, uint32_t y ) const { return heightMap[(y%_size)*_size + (x%_size)]; }
+		float get( double x, double y ) const;
 
 //		vector3df getNormal(uint32_t x, uint32_t y, float s) const;
 
-		float *getHeightMap() { return heightMap; }
+		//float *getHeightMap() { return heightMap; }
 
 	private:
 		// set value in height map

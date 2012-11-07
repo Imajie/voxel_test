@@ -22,17 +22,22 @@ This source file is part of the
 #include <Terrain/OgreTerrain.h>
 #include <Terrain/OgreTerrainGroup.h>
  
+#include <PolyVoxCore/SimpleInterface.h>
+
+typedef PolyVox::MaterialDensityPair<uint8_t, 7, 1> MyMaterialDensityPair;
+
 class BasicTutorial3 : public BaseApplication
 {
 private:
-    Ogre::TerrainGlobalOptions* mTerrainGlobals;
-    Ogre::TerrainGroup* mTerrainGroup;
-    bool mTerrainsImported;
-    OgreBites::Label* mInfoLabel;
- 
+	PolyVox::SimpleVolume<MyMaterialDensityPair> volume;
+	Ogre::ManualObject *ogreMesh;
+
+	void doMeshUpdate();
+
     void defineTerrain(long x, long y);
     void initBlendMaps(Ogre::Terrain* terrain);
     void configureTerrainDefaults(Ogre::Light* light);
+
 public:
     BasicTutorial3(void);
     virtual ~BasicTutorial3(void);
@@ -42,6 +47,15 @@ protected:
     virtual void createFrameListener(void);
     virtual void destroyScene(void);
     virtual bool frameRenderingQueued(const Ogre::FrameEvent& evt);
+
+	// OIS::KeyListener
+    virtual bool keyPressed( const OIS::KeyEvent& evt );
+    virtual bool keyReleased( const OIS::KeyEvent& evt );
+
+    // OIS::MouseListener
+    virtual bool mouseMoved( const OIS::MouseEvent& evt );
+    virtual bool mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonID id );
+    virtual bool mouseReleased( const OIS::MouseEvent& evt, OIS::MouseButtonID id );
 };
  
 #endif // #ifndef __BasicTutorial3_h_

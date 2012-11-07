@@ -9,8 +9,25 @@
 #include <iostream>
 #include <cstdlib>
 #include <time.h>
+#include "perlinNoise.h"
 
 using namespace std;
+
+// smaller = steeper more frequent hills
+#define TERRAIN_SCALE 150.0
+
+TerrainGenerator::TerrainGenerator( uint32_t size, float scaleFact ) :
+	_size(size), _scaleFact(scaleFact), heightMap(new float[size*size])
+{
+	//diamondSquare();
+	initPerlinNoise();
+}
+
+float TerrainGenerator::get( double x, double y ) const 
+{ 
+	return _scaleFact*perlinNoise(x/TERRAIN_SCALE, y/TERRAIN_SCALE);
+	//return heightMap[(y%_size)*_size + (x%_size)]; 
+}
 
 void TerrainGenerator::diamondSquare()
 {
