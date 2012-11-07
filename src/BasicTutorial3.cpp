@@ -243,17 +243,8 @@ bool BasicTutorial3::frameRenderingQueued(const Ogre::FrameEvent& evt)
 // OIS::KeyListener
 bool BasicTutorial3::keyPressed( const OIS::KeyEvent& evt )
 {
-	switch(evt.key)
-	{
-		case OIS::KC_ESCAPE:
-			mShutDown = true;
-			break;
-		default:
-			break;
-	}
-
-	mCameraMan->injectKeyDown(evt);
-	return true;
+	bool ret = BaseApplication::keyPressed( evt );
+	return ret;
 }
 
 bool BasicTutorial3::keyReleased( const OIS::KeyEvent& evt )
