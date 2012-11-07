@@ -83,13 +83,18 @@ void putHeightMapInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> > &vo
 					{
 						for( int iz = 0; iz < terrainScaleZ; iz++ ) 
 						{
-							//Get the old voxel
-							PolyVox::Material<uint8_t>  voxel = volume.getVoxelAt(x+ix,y,z+iz);
+							PolyVox::Vector3DInt32 point(x+ix,y,z+iz);
 
-							voxel.setMaterial(1);
+							if( volume.getEnclosingRegion().containsPoint(point) )
+							{
+								//Get the old voxel
+								PolyVox::Material<uint8_t>  voxel = volume.getVoxelAt(point);
 
-							//Wrte the voxel value into the volume
-							volume.setVoxelAt(x+ix, y, z+iz, voxel);
+								voxel.setMaterial(1);
+
+								//Wrte the voxel value into the volume
+								volume.setVoxelAt( point, voxel);
+							}
 						}
 					}
 				}
@@ -123,13 +128,18 @@ void createSphereInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> >& vo
 				//If the current voxel is less than 'radius' units from the center then we make it solid.
 				if(fDistToCenter <= fRadius)
 				{
-					//Get the old voxel
-					PolyVox::Material<uint8_t>  voxel = volData.getVoxelAt(x,y,z);
+					PolyVox::Vector3DInt32 point(x,y,z);
 
-					voxel.setMaterial(material);
+					if( volData.getEnclosingRegion().containsPoint(point) )
+					{
+						//Get the old voxel
+						PolyVox::Material<uint8_t>  voxel = volData.getVoxelAt(point);
 
-					//Wrte the voxel value into the volume
-					volData.setVoxelAt(x, y, z, voxel);
+						voxel.setMaterial(material);
+
+						//Wrte the voxel value into the volume
+						volData.setVoxelAt( point, voxel);
+					}
 				}
 			}
 		}
