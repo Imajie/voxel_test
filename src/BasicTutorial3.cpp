@@ -28,8 +28,7 @@ This source file is part of the
 #include "PolyVoxCore/SurfaceMesh.h"
 #include "PolyVoxCore/Raycast.h"
 
-#define TERRAIN_SIZE ((1<<10)+1)
-
+#define VOXEL_SCALE 10
 
 using namespace std;
 
@@ -37,7 +36,7 @@ void BasicTutorial3::doMeshUpdate()
 {
 	PolyVox::SurfaceMesh<PolyVox::PositionMaterial> mesh;
 
-	PolyVox::CubicSurfaceExtractor<PolyVox::SimpleVolume, MyMaterialDensityPair > suf(&volume, volume.getEnclosingRegion(), &mesh);
+	PolyVox::CubicSurfaceExtractor<PolyVox::SimpleVolume, PolyVox::Material<uint8_t>  > suf(&volume, volume.getEnclosingRegion(), &mesh);
 	suf.execute();
 	const vector<PolyVox::PositionMaterial>& vecVertices = mesh.getVertices();
 	const vector<uint32_t>& vecIndices = mesh.getIndices();
@@ -61,7 +60,7 @@ void BasicTutorial3::doMeshUpdate()
 	}
 }
 
-void putHeightMapInVolume(PolyVox::SimpleVolume<MyMaterialDensityPair> &volume, TerrainGenerator &terrainGen)
+void putHeightMapInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> > &volume, TerrainGenerator &terrainGen)
 {
 	PolyVox::Region volRegion(volume.getEnclosingRegion());
 
@@ -84,15 +83,10 @@ void putHeightMapInVolume(PolyVox::SimpleVolume<MyMaterialDensityPair> &volume, 
 					{
 						for( int iz = 0; iz < terrainScaleZ; iz++ ) 
 						{
-
-							//Our new density value
-							uint8_t uDensity = MyMaterialDensityPair::getMaxDensity();
-
 							//Get the old voxel
-							MyMaterialDensityPair voxel = volume.getVoxelAt(x+ix,y,z+iz);
+							PolyVox::Material<uint8_t>  voxel = volume.getVoxelAt(x+ix,y,z+iz);
 
-							//Modify the density
-							voxel.setDensity(uDensity);
+							voxel.setMaterial(1);
 
 							//Wrte the voxel value into the volume
 							volume.setVoxelAt(x+ix, y, z+iz, voxel);
@@ -104,7 +98,7 @@ void putHeightMapInVolume(PolyVox::SimpleVolume<MyMaterialDensityPair> &volume, 
 	}
 }
 
-void createSphereInVolume(PolyVox::SimpleVolume<MyMaterialDensityPair>& volData, float fRadius, PolyVox::Vector3DFloat center)
+void createSphereInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> >& volData, float fRadius, PolyVox::Vector3DFloat center)
 {
 	//This vector hold the position of the center of the volume
 	PolyVox::Region volRegion(volData.getEnclosingRegion());
@@ -128,10 +122,10 @@ void createSphereInVolume(PolyVox::SimpleVolume<MyMaterialDensityPair>& volData,
 				if(fDistToCenter <= fRadius)
 				{
 					//Our new density value
-					uint8_t uDensity = MyMaterialDensityPair::getMaxDensity();
+					uint8_t uDensity = PolyVox::Material<uint8_t> ::getMaxDensity();
 
 					//Get the old voxel
-					MyMaterialDensityPair voxel = volData.getVoxelAt(x,y,z);
+					PolyVox::Material<uint8_t>  voxel = volData.getVoxelAt(x,y,z);
 
 					//Modify the density
 					voxel.setDensity(uDensity);
@@ -148,8 +142,8 @@ void createSphereInVolume(PolyVox::SimpleVolume<MyMaterialDensityPair>& volData,
 //-------------------------------------------------------------------------------------
 BasicTutorial3::BasicTutorial3(void)
 	: volume( PolyVox::Region(
-				PolyVox::Vector3DInt32(0, -256, 0),
-				PolyVox::Vector3DInt32(512, 256, 512)
+				PolyVox::Vector3DInt32(0, -64, 0),
+				PolyVox::Vector3DInt32(64, 64, 64)
 				)
 			)
 {
@@ -200,9 +194,9 @@ void BasicTutorial3::createScene(void)
 	// YES we do intend to change the mesh later -.-
 	ogreMesh->setDynamic(true);
 
-	Ogre::SceneNode* ogreNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("testnode1", Ogre::Vector3(20, 0, 0));
+	Ogre::SceneNode* ogreNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("testnode1", Ogre::Vector3(0, 0, 0));
 	ogreNode->attachObject(ogreMesh);
-	ogreNode->setScale( Ogre::Vector3(10, 10, 10) );
+	ogreNode->setScale( Ogre::Vector3(VOXEL_SCALE, VOXEL_SCALE, VOXEL_SCALE) );
 
 	// volume is setup so
 	// now add some data to it
@@ -284,20 +278,29 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 	if( id == OIS::MB_Left )
 	{
 		// left pressed, lets make a voxel!!!
-		PolyVox::Vector3DFloat start(mCamera->getPosition().x, mCamera->getPosition().y, mCamera->getPosition().z );
+		PolyVox::Vector3DFloat start(mCamera->getPosition().x/VOXEL_SCALE, mCamera->getPosition().y/VOXEL_SCALE, mCamera->getPosition().z/VOXEL_SCALE );
 		PolyVox::Vector3DFloat dir(mCamera->getDirection().x, mCamera->getDirection().y, mCamera->getDirection().z );
 
 		dir.normalise();
-		dir *= 10;
+		dir *= 1000;
+
+		cout << "start = (" << start.getX() << ", " << start.getY() << ", " << start.getZ() << ")" << endl;
+		cout << "dir = (" << dir.getX() << ", " << dir.getY() << ", " << dir.getZ() << ")" << endl;
+		cout << "volume = L(" << volume.getEnclosingRegion().getLowerCorner().getX() << ", " << 
+			volume.getEnclosingRegion().getLowerCorner().getY() << ", " << volume.getEnclosingRegion().getLowerCorner().getZ() << ")" << endl;
+		cout << "volume = U(" << volume.getEnclosingRegion().getUpperCorner().getX() << ", " << 
+			volume.getEnclosingRegion().getUpperCorner().getY() << ", " << volume.getEnclosingRegion().getUpperCorner().getZ() << ")" << endl;
 
 		PolyVox::RaycastResult result;
-		PolyVox::Raycast<PolyVox::SimpleVolume, MyMaterialDensityPair> caster(&volume, start, dir, result);
+		PolyVox::Raycast<PolyVox::SimpleVolume, PolyVox::Material<uint8_t> > caster(&volume, start, dir, result);
 
 		caster.execute();
+
 		if( result.foundIntersection )
 		{
-			MyMaterialDensityPair voxel = volume.getVoxelAt(result.previousVoxel);
-			voxel.setDensity(1);
+			cout << "Found intersection" << endl;
+			PolyVox::Material<uint8_t> voxel = volume.getVoxelAt(result.previousVoxel);
+			voxel.setMaterial(1);
 			volume.setVoxelAt(result.previousVoxel, voxel);
 
 			ogreMesh->beginUpdate(0);
@@ -306,6 +309,10 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 			}
 			ogreMesh->end();
 
+		}
+		else
+		{
+			cout << "Didn't find intersection" << endl;
 		}
 	}
 

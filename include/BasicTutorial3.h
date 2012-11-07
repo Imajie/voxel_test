@@ -23,13 +23,12 @@ This source file is part of the
 #include <Terrain/OgreTerrainGroup.h>
  
 #include <PolyVoxCore/SimpleInterface.h>
-
-typedef PolyVox::MaterialDensityPair<uint8_t, 7, 1> MyMaterialDensityPair;
+#include <PolyVoxCore/Material.h>
 
 class BasicTutorial3 : public BaseApplication
 {
 private:
-	PolyVox::SimpleVolume<MyMaterialDensityPair> volume;
+	PolyVox::SimpleVolume<PolyVox::Material<uint8_t> > volume;
 	Ogre::ManualObject *ogreMesh;
 
 	void doMeshUpdate();
