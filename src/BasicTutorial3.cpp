@@ -28,7 +28,8 @@ This source file is part of the
 #include "PolyVoxCore/SurfaceMesh.h"
 #include "PolyVoxCore/Raycast.h"
 
-#define VOXEL_SCALE 10
+#define VOXEL_SCALE 10.0
+#define MODIFY_RADIUS 5.0
 
 using namespace std;
 
@@ -146,6 +147,38 @@ void createSphereInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> >& vo
 	}
 }
 
+void BasicTutorial3::createCursor( float radius )
+{
+	radius *= VOXEL_SCALE;
+	radius -= 1.0;
+
+	// Assuming scene_mgr is your SceneManager.
+	Ogre::ManualObject * circle = mSceneMgr->createManualObject("debugCursor");
+ 
+    // accuracy is the count of points (and lines).
+    // Higher values make the circle smoother, but may slowdown the performance.
+    // The performance also is related to the count of circles.
+    float const accuracy = 35;
+ 
+    circle->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_LINE_STRIP);
+ 
+    unsigned point_index = 0;
+    for(float theta = 0; theta <= 2 * M_PI; theta += M_PI / accuracy) {
+        circle->position(radius * cos(theta), 0, radius * sin(theta));
+        circle->index(point_index++);
+    }
+    for(float theta = 0; theta <= 2 * M_PI; theta += M_PI / accuracy) {
+        circle->position(radius * cos(theta), radius * sin(theta), 0);
+        circle->index(point_index++);
+    }
+    circle->index(0); // Rejoins the last point to the first.
+ 
+    circle->end();
+ 
+    mCursor = mSceneMgr->getRootSceneNode()->createChildSceneNode("debugCursor");
+	mCursor->attachObject(circle);
+}
+
 
 //-------------------------------------------------------------------------------------
 BasicTutorial3::BasicTutorial3(void)
@@ -167,7 +200,7 @@ void BasicTutorial3::destroyScene(void)
 //-------------------------------------------------------------------------------------
 void BasicTutorial3::createScene(void)
 {
-	Ogre::Timer timer;
+	createCursor(MODIFY_RADIUS);
 
 	mCamera->setPosition(Ogre::Vector3(1683, 50, 2116));
 	//mCamera->lookAt(Ogre::Vector3(1963, 50, 1660));
@@ -247,6 +280,28 @@ bool BasicTutorial3::frameRenderingQueued(const Ogre::FrameEvent& evt)
 	mMouse->capture();
 	mTrayMgr->frameRenderingQueued(evt);
 
+	// move cursor
+	PolyVox::Vector3DFloat start(mCamera->getPosition().x/VOXEL_SCALE, mCamera->getPosition().y/VOXEL_SCALE, mCamera->getPosition().z/VOXEL_SCALE );
+	PolyVox::Vector3DFloat dir(mCamera->getDirection().x, mCamera->getDirection().y, mCamera->getDirection().z );
+
+	dir.normalise();
+	dir *= 1000;
+
+	PolyVox::RaycastResult result;
+	PolyVox::Raycast<PolyVox::SimpleVolume, PolyVox::Material<uint8_t> > caster(&volume, start, dir, result);
+
+	caster.execute();
+
+	if( result.foundIntersection )
+	{
+		Ogre::Vector3 intersect( result.previousVoxel.getX()*VOXEL_SCALE, 
+				result.previousVoxel.getY()*VOXEL_SCALE, result.previousVoxel.getZ()*VOXEL_SCALE );
+
+		mCursor->setPosition(intersect);
+	}
+
+	mCursor->setVisible(result.foundIntersection);
+
 	return ret;
 }
 
@@ -267,6 +322,7 @@ bool BasicTutorial3::keyReleased( const OIS::KeyEvent& evt )
 bool BasicTutorial3::mouseMoved( const OIS::MouseEvent& evt )
 {
 	mCameraMan->injectMouseMove(evt);
+
 	return true;
 }
 
@@ -274,19 +330,11 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 {
 	if( id == OIS::MB_Left || id == OIS::MB_Right )
 	{
-		// left pressed, lets make a voxel!!!
 		PolyVox::Vector3DFloat start(mCamera->getPosition().x/VOXEL_SCALE, mCamera->getPosition().y/VOXEL_SCALE, mCamera->getPosition().z/VOXEL_SCALE );
 		PolyVox::Vector3DFloat dir(mCamera->getDirection().x, mCamera->getDirection().y, mCamera->getDirection().z );
 
 		dir.normalise();
 		dir *= 1000;
-
-		cout << "start = (" << start.getX() << ", " << start.getY() << ", " << start.getZ() << ")" << endl;
-		cout << "dir = (" << dir.getX() << ", " << dir.getY() << ", " << dir.getZ() << ")" << endl;
-		cout << "volume = L(" << volume.getEnclosingRegion().getLowerCorner().getX() << ", " << 
-			volume.getEnclosingRegion().getLowerCorner().getY() << ", " << volume.getEnclosingRegion().getLowerCorner().getZ() << ")" << endl;
-		cout << "volume = U(" << volume.getEnclosingRegion().getUpperCorner().getX() << ", " << 
-			volume.getEnclosingRegion().getUpperCorner().getY() << ", " << volume.getEnclosingRegion().getUpperCorner().getZ() << ")" << endl;
 
 		PolyVox::RaycastResult result;
 		PolyVox::Raycast<PolyVox::SimpleVolume, PolyVox::Material<uint8_t> > caster(&volume, start, dir, result);
@@ -295,15 +343,13 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 
 		if( result.foundIntersection )
 		{
-			cout << "Found intersection" << endl;
-
 			if( id == OIS::MB_Left )
 			{
-				createSphereInVolume( volume, 5.0, result.previousVoxel, 1 );
+				createSphereInVolume( volume, MODIFY_RADIUS, result.previousVoxel, 1 );
 			}
 			else if( id == OIS::MB_Right )
 			{
-				createSphereInVolume( volume, 5.0, result.intersectionVoxel, 0 );
+				createSphereInVolume( volume, MODIFY_RADIUS, result.intersectionVoxel, 0 );
 			}
 
 			ogreMesh->beginUpdate(0);
@@ -312,10 +358,6 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 			}
 			ogreMesh->end();
 
-		}
-		else
-		{
-			cout << "Didn't find intersection" << endl;
 		}
 	}
 

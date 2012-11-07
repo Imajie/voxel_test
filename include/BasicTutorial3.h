@@ -30,8 +30,10 @@ class BasicTutorial3 : public BaseApplication
 private:
 	PolyVox::SimpleVolume<PolyVox::Material<uint8_t> > volume;
 	Ogre::ManualObject *ogreMesh;
+	Ogre::SceneNode *mCursor;
 
 	void doMeshUpdate();
+	void createCursor( float radius );
 
     void defineTerrain(long x, long y);
     void initBlendMaps(Ogre::Terrain* terrain);
