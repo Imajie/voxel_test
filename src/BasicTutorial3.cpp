@@ -98,8 +98,10 @@ void putHeightMapInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> > &vo
 	}
 }
 
-void createSphereInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> >& volData, float fRadius, PolyVox::Vector3DFloat center)
+void createSphereInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> >& volData, float fRadius, PolyVox::Vector3DInt32 _center, uint8_t material)
 {
+	PolyVox::Vector3DFloat center( _center.getX(), _center.getY(), _center.getZ() );
+
 	//This vector hold the position of the center of the volume
 	PolyVox::Region volRegion(volData.getEnclosingRegion());
 
@@ -121,14 +123,10 @@ void createSphereInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> >& vo
 				//If the current voxel is less than 'radius' units from the center then we make it solid.
 				if(fDistToCenter <= fRadius)
 				{
-					//Our new density value
-					uint8_t uDensity = PolyVox::Material<uint8_t> ::getMaxDensity();
-
 					//Get the old voxel
 					PolyVox::Material<uint8_t>  voxel = volData.getVoxelAt(x,y,z);
 
-					//Modify the density
-					voxel.setDensity(uDensity);
+					voxel.setMaterial(material);
 
 					//Wrte the voxel value into the volume
 					volData.setVoxelAt(x, y, z, voxel);
@@ -206,8 +204,6 @@ void BasicTutorial3::createScene(void)
 
 	putHeightMapInVolume(volume, terrainGen);
 
-	//createSphereInVolume(volume, 100.0, PolyVox::Vector3DFloat(0, 0, 0));
-
 	ogreMesh->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
 	{
 		doMeshUpdate();
@@ -275,7 +271,7 @@ bool BasicTutorial3::mouseMoved( const OIS::MouseEvent& evt )
 
 bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonID id )
 {
-	if( id == OIS::MB_Left )
+	if( id == OIS::MB_Left || id == OIS::MB_Right )
 	{
 		// left pressed, lets make a voxel!!!
 		PolyVox::Vector3DFloat start(mCamera->getPosition().x/VOXEL_SCALE, mCamera->getPosition().y/VOXEL_SCALE, mCamera->getPosition().z/VOXEL_SCALE );
@@ -299,9 +295,15 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 		if( result.foundIntersection )
 		{
 			cout << "Found intersection" << endl;
-			PolyVox::Material<uint8_t> voxel = volume.getVoxelAt(result.previousVoxel);
-			voxel.setMaterial(1);
-			volume.setVoxelAt(result.previousVoxel, voxel);
+
+			if( id == OIS::MB_Left )
+			{
+				createSphereInVolume( volume, 5.0, result.previousVoxel, 1 );
+			}
+			else if( id == OIS::MB_Right )
+			{
+				createSphereInVolume( volume, 5.0, result.intersectionVoxel, 0 );
+			}
 
 			ogreMesh->beginUpdate(0);
 			{
