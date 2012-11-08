@@ -72,7 +72,13 @@ void TerrainPager::extract( const PolyVox::Region &region )
 {
 	PolyVox::SurfaceMesh<PolyVox::PositionMaterial> surf_mesh;
 
-	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume, PolyVox::Material8> suf(&volume, region, &surf_mesh);
+	PolyVox::Region new_region;
+
+	// ensure meshes connect
+	new_region.setUpperCorner( region.getUpperCorner() + PolyVox::Vector3DInt32(1, 0, 1) );
+	new_region.setLowerCorner( region.getLowerCorner() );
+
+	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume, PolyVox::Material8> suf(&volume, new_region, &surf_mesh);
 
 	suf.execute();
 
