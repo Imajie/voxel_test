@@ -32,8 +32,6 @@ double grad(int hash, double x, double y, double z)
 }
 
 double perlinNoise(double x, double y, double z) {
-	//cout << "Noise: " << x << ", " << y << ", " << z << ": ";
-
 	int X = (int)floor(x) & 255,                  // FIND UNIT CUBE THAT
 		Y = (int)floor(y) & 255,                  // CONTAINS POINT.
 		Z = (int)floor(z) & 255;
@@ -65,7 +63,6 @@ double perlinNoise(double x, double y, double z) {
 					grad(p[AB+1], x  , y-1, z-1 ),
 					grad(p[BB+1], x-1, y-1, z-1 ))));
 
-	//cout << ret << endl;
 	return ret;
 }
 const int permutation[] = { 151,160,137,91,90,15,

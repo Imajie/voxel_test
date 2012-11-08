@@ -18,26 +18,21 @@ This source file is part of the
 #define __BasicTutorial3_h_
  
 #include "BaseApplication.h"
- 
-#include <Terrain/OgreTerrain.h>
-#include <Terrain/OgreTerrainGroup.h>
+
+#include "terrainPager.h"
  
 #include <PolyVoxCore/SimpleInterface.h>
+#include <PolyVoxCore/LargeVolume.h>
 #include <PolyVoxCore/Material.h>
 
 class BasicTutorial3 : public BaseApplication
 {
 private:
-	PolyVox::SimpleVolume<PolyVox::Material<uint8_t> > volume;
-	Ogre::ManualObject *ogreMesh;
+	TerrainPager *terrain;
 	Ogre::SceneNode *mCursor;
 
-	void doMeshUpdate();
+	void doTerrainUpdate();
 	void createCursor( float radius );
-
-    void defineTerrain(long x, long y);
-    void initBlendMaps(Ogre::Terrain* terrain);
-    void configureTerrainDefaults(Ogre::Light* light);
 
 public:
     BasicTutorial3(void);

@@ -18,13 +18,11 @@ This source file is part of the
 #include <vector>
 #include <cassert>
 
+#include "perlinNoise.h"
+
 #include "BasicTutorial3.h"
-#include "terrainGenerator.h"
-#include "PolyVoxCore/SimpleVolume.h"
 #include "PolyVoxCore/SimpleInterface.h"
 #include "PolyVoxCore/CubicSurfaceExtractor.h"
-#include "PolyVoxCore/SurfaceExtractor.h"
-#include "PolyVoxCore/MaterialDensityPair.h"
 #include "PolyVoxCore/SurfaceMesh.h"
 #include "PolyVoxCore/Raycast.h"
 
@@ -33,78 +31,12 @@ This source file is part of the
 
 using namespace std;
 
-void BasicTutorial3::doMeshUpdate()
+void BasicTutorial3::doTerrainUpdate()
 {
-	PolyVox::SurfaceMesh<PolyVox::PositionMaterial> mesh;
-
-	PolyVox::CubicSurfaceExtractor<PolyVox::SimpleVolume, PolyVox::Material<uint8_t>  > suf(&volume, volume.getEnclosingRegion(), &mesh);
-	suf.execute();
-	const vector<PolyVox::PositionMaterial>& vecVertices = mesh.getVertices();
-	const vector<uint32_t>& vecIndices = mesh.getIndices();
-	unsigned int uLodLevel = 0;
-	int beginIndex = mesh.m_vecLodRecords[uLodLevel].beginIndex;
-	int endIndex = mesh.m_vecLodRecords[uLodLevel].endIndex;
-	for(int index = beginIndex; index < endIndex; ++index) {
-		const PolyVox::PositionMaterial& vertex = vecVertices[vecIndices[index]];
-
-		const PolyVox::Vector3DFloat& v3dVertexPos = vertex.getPosition();
-
-		const PolyVox::Vector3DFloat v3dFinalVertexPos = v3dVertexPos + static_cast<PolyVox::Vector3DFloat>(mesh.m_Region.getLowerCorner());
-
-		ogreMesh->position(v3dFinalVertexPos.getX(), v3dFinalVertexPos.getY(), v3dFinalVertexPos.getZ());
-
-		uint8_t red = ((int)abs(vertex.getPosition().getY())) % 256;
-		uint8_t green = ((int)abs(vertex.getPosition().getZ())*3) % 256;
-		uint8_t blue = ((int)abs(vertex.getPosition().getX())*5) % 256;
-
-		ogreMesh->colour(red, green, blue);
-	}
+	terrain->regenerateMesh( mCamera->getPosition() );
 }
 
-void putHeightMapInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> > &volume, TerrainGenerator &terrainGen)
-{
-	PolyVox::Region volRegion(volume.getEnclosingRegion());
-
-	int terrainScaleX = 1;//(volRegion.getUpperCorner().getX() - volRegion.getLowerCorner().getX()) / terrainGen.width();
-	int terrainScaleZ = 1;//(volRegion.getUpperCorner().getZ() - volRegion.getLowerCorner().getZ()) / terrainGen.height();
-
-	for (int z = volRegion.getLowerCorner().getZ(); z < volRegion.getUpperCorner().getZ(); z+=terrainScaleZ)
-	{
-		for (int x = volRegion.getLowerCorner().getX(); x < volRegion.getUpperCorner().getX(); x+=terrainScaleX)
-		{
-			int xx = (x - volRegion.getLowerCorner().getX())/terrainScaleX;
-			int zz = (z - volRegion.getLowerCorner().getZ())/terrainScaleZ;
-
-			if( xx < (int)terrainGen.width() && zz < (int)terrainGen.height() )
-			{
-				int terrainHeight = terrainGen.get(xx, zz);
-				for( int y = volRegion.getLowerCorner().getY(); y < terrainHeight; y++ )
-				{
-					for( int ix = 0; ix < terrainScaleX; ix++ ) 
-					{
-						for( int iz = 0; iz < terrainScaleZ; iz++ ) 
-						{
-							PolyVox::Vector3DInt32 point(x+ix,y,z+iz);
-
-							if( volume.getEnclosingRegion().containsPoint(point) )
-							{
-								//Get the old voxel
-								PolyVox::Material<uint8_t>  voxel = volume.getVoxelAt(point);
-
-								voxel.setMaterial(1);
-
-								//Wrte the voxel value into the volume
-								volume.setVoxelAt( point, voxel);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-void createSphereInVolume(PolyVox::SimpleVolume<PolyVox::Material<uint8_t> >& volData, float fRadius, PolyVox::Vector3DInt32 _center, uint8_t material)
+void createSphereInVolume(PolyVox::LargeVolume<PolyVox::Material<uint8_t> >& volData, float fRadius, PolyVox::Vector3DInt32 _center, uint8_t material)
 {
 	PolyVox::Vector3DFloat center( _center.getX(), _center.getY(), _center.getZ() );
 
@@ -182,11 +114,7 @@ void BasicTutorial3::createCursor( float radius )
 
 //-------------------------------------------------------------------------------------
 BasicTutorial3::BasicTutorial3(void)
-	: volume( PolyVox::Region(
-				PolyVox::Vector3DInt32(0, -64, 0),
-				PolyVox::Vector3DInt32(64, 64, 64)
-				)
-			)
+	: terrain(NULL)
 {
 }
 //-------------------------------------------------------------------------------------
@@ -202,9 +130,10 @@ void BasicTutorial3::createScene(void)
 {
 	createCursor(MODIFY_RADIUS);
 
-	mCamera->setPosition(Ogre::Vector3(1683, 50, 2116));
+	//mCamera->setPosition(Ogre::Vector3(1683, 50, 2116));
 	//mCamera->lookAt(Ogre::Vector3(1963, 50, 1660));
-	mCamera->lookAt(Ogre::Vector3(0, 0, 0));
+	mCamera->setPosition(Ogre::Vector3(0, 50, 0));
+	mCamera->lookAt(Ogre::Vector3(100, 50, 0));
 	mCamera->setNearClipDistance(0.1);
 	mCamera->setFarClipDistance(50000);
 
@@ -230,28 +159,11 @@ void BasicTutorial3::createScene(void)
 	mSceneMgr->setAmbientLight(Ogre::ColourValue(0.2, 0.2, 0.2));
 
 	// PolyVox stuff
-	// create something to draw the PolyVox stuff to
-	ogreMesh = mSceneMgr->createManualObject("PolyVox Mesh");
-	// YES we do intend to change the mesh later -.-
-	ogreMesh->setDynamic(true);
-
 	Ogre::SceneNode* ogreNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("testnode1", Ogre::Vector3(0, 0, 0));
-	ogreNode->attachObject(ogreMesh);
-	ogreNode->setScale( Ogre::Vector3(VOXEL_SCALE, VOXEL_SCALE, VOXEL_SCALE) );
 
-	// volume is setup so
-	// now add some data to it
-	TerrainGenerator terrainGen( 512, 40 );
+	terrain = new TerrainPager( mSceneMgr, ogreNode );
 
-	std::cout << "Gen terrain: " << std::endl;
-
-	putHeightMapInVolume(volume, terrainGen);
-
-	ogreMesh->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
-	{
-		doMeshUpdate();
-	}
-	ogreMesh->end();
+	doTerrainUpdate();
 
 	Ogre::Plane plane;
 	plane.d = 100;
@@ -288,9 +200,7 @@ bool BasicTutorial3::frameRenderingQueued(const Ogre::FrameEvent& evt)
 	dir *= 1000;
 
 	PolyVox::RaycastResult result;
-	PolyVox::Raycast<PolyVox::SimpleVolume, PolyVox::Material<uint8_t> > caster(&volume, start, dir, result);
-
-	caster.execute();
+	terrain->raycast( start, dir, result );
 
 	if( result.foundIntersection )
 	{
@@ -301,6 +211,8 @@ bool BasicTutorial3::frameRenderingQueued(const Ogre::FrameEvent& evt)
 	}
 
 	mCursor->setVisible(result.foundIntersection);
+
+	doTerrainUpdate();
 
 	return ret;
 }
@@ -337,27 +249,21 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 		dir *= 1000;
 
 		PolyVox::RaycastResult result;
-		PolyVox::Raycast<PolyVox::SimpleVolume, PolyVox::Material<uint8_t> > caster(&volume, start, dir, result);
 
-		caster.execute();
+		terrain->raycast( start, dir, result );
 
 		if( result.foundIntersection )
 		{
 			if( id == OIS::MB_Left )
 			{
-				createSphereInVolume( volume, MODIFY_RADIUS, result.previousVoxel, 1 );
+				//createSphereInVolume( volume, MODIFY_RADIUS, result.previousVoxel, 1 );
 			}
 			else if( id == OIS::MB_Right )
 			{
-				createSphereInVolume( volume, MODIFY_RADIUS, result.intersectionVoxel, 0 );
+				//createSphereInVolume( volume, MODIFY_RADIUS, result.intersectionVoxel, 0 );
 			}
 
-			ogreMesh->beginUpdate(0);
-			{
-				doMeshUpdate();
-			}
-			ogreMesh->end();
-
+			doTerrainUpdate();
 		}
 	}
 
@@ -388,6 +294,8 @@ extern "C" {
 #endif
 		{
 			// Create application object
+			initPerlinNoise();
+
 			BasicTutorial3 app;
 
 			try {
