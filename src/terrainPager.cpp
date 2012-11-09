@@ -29,11 +29,11 @@ typedef struct ExtractRequestHolder
 } ExtractRequest;
 
 TerrainPager::TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node ) :
-	volume(&volume_load, &volume_unload, CHUNK_SIZE), mesh(sceneMgr->createManualObject("terrain")), lastPosition(0,0,0), 
+	volume(&volume_load, &volume_unload, CHUNK_SIZE), mesh(Ogre::MeshManager::getSingleton().createManual("terrain", "General")), lastPosition(0,0,0), 
 	extractQueue(Ogre::Root::getSingleton().getWorkQueue()), init(false)
 {
-	mesh->setDynamic(true);
-	node->attachObject(mesh);
+	Ogre::Entity *entity = sceneMgr->createEntity("terrain");
+	node->attachObject(entity);
 
 	queueChannel = extractQueue->getChannel("Terrain/Page");
 
@@ -62,19 +62,35 @@ Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::R
 	if( data.new_mesh )
 	{
 		// add chunk to map
-		chunkToMesh[data.coord] = mesh->getNumSections();
+		chunkToMesh[data.coord] = submeshes.size();
 
-		mesh->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
+		Ogre::SubMesh *sub = mesh->createSubMesh();
+		submeshes.push_back( sub );
+
+		sub->useSharedVerticies = false;
+		sub->vertexData = new Ogre::VertexData();
+
+		Ogre::VertexDeclaration *decl = sub->vertexData->vertexDeclaration;
+
+		// our nodes are only position and color
+		size_t offset = 0;
+		decl->addElement( 0, offset, VET_FLOAT3, VES_POSITION );
+		offset += Ogre::VertexElement::getTypeSize( VET_FLOAT3 );
+
+		decl->addElement( 0, offset, VET_FLOAT3, VES_COLOR );
+		offset += Ogre::VertexElement::getTypeSize( VET_FLOAT3 );
+
+		//mesh->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
 	}
 	else
 	{
-		mesh->beginUpdate( chunkToMesh[data.coord] );
+		//mesh->beginUpdate( chunkToMesh[data.coord] );
 	}
 
 	volume.prefetch( data.region );
-	extract( data.region );
+	extract( data.region, data.new_mesh );
 
-	mesh->end();
+	//mesh->end();
 
 	return new Ogre::WorkQueue::Response( req, true, req->getData() );
 }
@@ -138,7 +154,7 @@ void TerrainPager::raycast( const PolyVox::Vector3DFloat &start, const PolyVox::
 	caster.execute();
 }
 
-void TerrainPager::extract( const PolyVox::Region &region )
+void TerrainPager::extract( const PolyVox::Region &region, bool new_mesh )
 {
 	std::cout << "Extract: " << region.getLowerCorner() << "->" << region.getUpperCorner() << std::endl;
 	
@@ -165,6 +181,15 @@ void TerrainPager::extract( const PolyVox::Region &region )
 	if( endIndex == beginIndex )
 	{
 		std::cout << "Index count = 0" << std::endl;
+	}
+
+	Ogre::SubMesh *submesh = submeshes[ chunkToMesh[ toChunkCoord(region) ] ];
+
+	if( new_mesh )
+	{
+		// allocate buffer space
+		Ogre::HardwareVertexBufferSharedPtr vbuf = 
+			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( submesh->vertexData->vertexDeclaration, vecVertices.size(), HBU_STATIC_WRITE_ONLY );
 	}
 
 	std::cout << "Adding mesh data" << std::endl;

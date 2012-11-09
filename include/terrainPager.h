@@ -56,7 +56,8 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		PolyVox::LargeVolume<PolyVox::Material8> volume;
 
 		// the ogre mesh
-		Ogre::ManualObject *mesh;
+		Ogre::MeshPtr *mesh;
+		std::vector<Ogre::SubMesh*> submeshes;
 
 		// last player position
 		Ogre::Vector3 lastPosition;
