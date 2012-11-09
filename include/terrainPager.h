@@ -16,10 +16,13 @@
 
 #include <OgreSceneManager.h>
 #include <OgreManualObject.h>
+#include <OgreWorkQueue.h>
 
-class TerrainPager
+class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQueue::ResponseHandler
 {
 	public:
+		typedef std::pair<int,int> chunkCoord;
+		
 		TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node );
 
 		// regenerate the mesh for our new position, if needed
@@ -32,7 +35,13 @@ class TerrainPager
 		static void volume_unload( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 
 	private:
-		typedef std::pair<int,int> chunkCoord;
+		// Request handler interface
+		virtual bool canHandleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ);
+		virtual Ogre::WorkQueue::Response* handleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ);
+
+		// Response handler interface
+		virtual bool canHandleResponse (const Ogre::WorkQueue::Response *res, const Ogre::WorkQueue *srcQ);
+		virtual void handleResponse (const Ogre::WorkQueue::Response *res, const Ogre::WorkQueue *srcQ);
 
 		// extract the region into new/updated mesh
 		void extract( const PolyVox::Region &region );
@@ -51,6 +60,11 @@ class TerrainPager
 
 		// last player position
 		Ogre::Vector3 lastPosition;
+
+		// Work queue for loading terrain in the background
+		Ogre::WorkQueue *extractQueue;
+		int queueChannel;
+		boost::mutex mutex;
 
 		// initialized
 		bool init;

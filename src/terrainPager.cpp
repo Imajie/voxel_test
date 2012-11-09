@@ -9,16 +9,88 @@
 
 #include <PolyVoxCore/CubicSurfaceExtractor.h>
 #include <vector>
+#include <OgreRoot.h>
+
+#include <boost/thread/mutex.hpp>
 
 #define CHUNK_SIZE 64
 #define CHUNK_DIST 5
 #define NOISE_SCALE 150.0
 
+#define TERRAIN_EXTRACT_TYPE 1
+
+typedef struct ExtractRequestHolder
+{
+	PolyVox::Region region;
+	TerrainPager::chunkCoord coord;
+	bool new_mesh;
+	friend std::ostream& operator<<(std::ostream& os, const struct ExtractRequestHolder &region) { return os; }
+
+} ExtractRequest;
+
 TerrainPager::TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node ) :
-	volume(&volume_load, &volume_unload, CHUNK_SIZE), mesh(sceneMgr->createManualObject("terrain")), lastPosition(0,0,0), init(false)
+	volume(&volume_load, &volume_unload, CHUNK_SIZE), mesh(sceneMgr->createManualObject("terrain")), lastPosition(0,0,0), 
+	extractQueue(Ogre::Root::getSingleton().getWorkQueue()), init(false)
 {
 	mesh->setDynamic(true);
 	node->attachObject(mesh);
+
+	queueChannel = extractQueue->getChannel("Terrain/Page");
+
+	extractQueue->addRequestHandler( queueChannel, this );
+	extractQueue->addResponseHandler( queueChannel, this );
+
+	extractQueue->startup();
+}
+
+bool TerrainPager::canHandleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ)
+{
+	if( req->getType() == TERRAIN_EXTRACT_TYPE )
+	{
+		return true;
+	}
+	return false;
+}
+
+Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ)
+{
+	// lock
+	boost::unique_lock<boost::mutex> lock(mutex);
+
+	ExtractRequest data = req->getData().get<ExtractRequest>();
+
+	if( data.new_mesh )
+	{
+		// add chunk to map
+		chunkToMesh[data.coord] = mesh->getNumSections();
+
+		mesh->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
+	}
+	else
+	{
+		mesh->beginUpdate( chunkToMesh[data.coord] );
+	}
+
+	volume.prefetch( data.region );
+	extract( data.region );
+
+	mesh->end();
+
+	return new Ogre::WorkQueue::Response( req, true, req->getData() );
+}
+
+bool TerrainPager::canHandleResponse (const Ogre::WorkQueue::Response *res, const Ogre::WorkQueue *srcQ)
+{
+	if( res->getRequest()->getType() == TERRAIN_EXTRACT_TYPE )
+	{
+		return true;
+	}
+	return false;
+}
+
+void TerrainPager::handleResponse (const Ogre::WorkQueue::Response *res, const Ogre::WorkQueue *srcQ)
+{
+	// do nothing
 }
 
 // regenerate the mesh for our new position, if needed
@@ -34,25 +106,23 @@ void TerrainPager::regenerateMesh( const Ogre::Vector3 &position )
 			chunkCoord coord = std::make_pair(x,z);
 			PolyVox::Region region = toRegion(coord);
 
+			ExtractRequest req;
+			req.region = region;
+			req.coord = coord;
+			req.new_mesh = false;
+
 			if( chunkToMesh.find( coord ) == chunkToMesh.end() )
 			{
-				volume.prefetch( region );
+				//volume.prefetch( region );
 
-				// add chunk to map
-				chunkToMesh[toChunkCoord(region.getLowerCorner())] = mesh->getNumSections();
-
-				mesh->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
-				extract( region );
-				mesh->end();
-
+				req.new_mesh = true;
+				extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
 			}
 			else
 			{
 				if( false )
 				{
-					mesh->beginUpdate( chunkToMesh[coord] );
-					extract( region );
-					mesh->end();
+					extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
 				}
 			}
 		}
@@ -70,6 +140,8 @@ void TerrainPager::raycast( const PolyVox::Vector3DFloat &start, const PolyVox::
 
 void TerrainPager::extract( const PolyVox::Region &region )
 {
+	std::cout << "Extract: " << region.getLowerCorner() << "->" << region.getUpperCorner() << std::endl;
+	
 	PolyVox::SurfaceMesh<PolyVox::PositionMaterial> surf_mesh;
 
 	PolyVox::Region new_region;
@@ -79,7 +151,9 @@ void TerrainPager::extract( const PolyVox::Region &region )
 
 	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume, PolyVox::Material8> suf(&volume, new_region, &surf_mesh);
 
+	std::cout << "Pre-extract" << std::endl;
 	suf.execute();
+	std::cout << "Post-extract" << std::endl;
 
 	const std::vector<PolyVox::PositionMaterial>& vecVertices = surf_mesh.getVertices();
 	const std::vector<uint32_t>& vecIndices = surf_mesh.getIndices();
@@ -93,6 +167,7 @@ void TerrainPager::extract( const PolyVox::Region &region )
 		std::cout << "Index count = 0" << std::endl;
 	}
 
+	std::cout << "Adding mesh data" << std::endl;
 	for(int index = beginIndex; index < endIndex; ++index) {
 		const PolyVox::PositionMaterial& vertex = vecVertices[vecIndices[index]];
 
