@@ -74,8 +74,7 @@ void TerrainPager::extract( const PolyVox::Region &region )
 
 	PolyVox::Region new_region;
 
-	// ensure meshes connect
-	new_region.setUpperCorner( region.getUpperCorner() + PolyVox::Vector3DInt32(1, 0, 1) );
+	new_region.setUpperCorner( region.getUpperCorner() - PolyVox::Vector3DInt32(1, 0, 1) );
 	new_region.setLowerCorner( region.getLowerCorner() );
 
 	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume, PolyVox::Material8> suf(&volume, new_region, &surf_mesh);
@@ -135,9 +134,9 @@ TerrainPager::chunkCoord TerrainPager::toChunkCoord( const PolyVox::Vector3DInt3
 // volume paging functions
 void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region )
 {
-	for( int x = region.getLowerCorner().getX(); x < region.getUpperCorner().getX(); x++ )
+	for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )
 	{
-		for( int z = region.getLowerCorner().getZ(); z < region.getUpperCorner().getZ(); z++ )
+		for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
 		{
 			double height = (CHUNK_SIZE*perlinNoise(x/NOISE_SCALE, z/NOISE_SCALE)/2.0 + CHUNK_SIZE/2.0);
 
