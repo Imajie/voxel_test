@@ -324,7 +324,7 @@ bool BaseApplication::keyPressed( const OIS::KeyEvent &arg )
         Ogre::MaterialManager::getSingleton().setDefaultAnisotropy(aniso);
         mDetailsPanel->setParamValue(9, newVal);
     }
-    /*else if (arg.key == OIS::KC_R)   // cycle polygon rendering mode
+    else if (arg.key == OIS::KC_P)   // cycle polygon rendering mode
     {
         Ogre::String newVal;
         Ogre::PolygonMode pm;
@@ -347,7 +347,6 @@ bool BaseApplication::keyPressed( const OIS::KeyEvent &arg )
         mCamera->setPolygonMode(pm);
         mDetailsPanel->setParamValue(10, newVal);
     }
-	*/
     else if(arg.key == OIS::KC_F5)   // refresh all textures
     {
         Ogre::TextureManager::getSingleton().reloadAll();

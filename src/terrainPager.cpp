@@ -17,6 +17,8 @@
 
 #include <boost/thread/mutex.hpp>
 
+#include <unistd.h>
+
 #define BACKGROUND_LOAD
 
 #define CHUNK_SIZE 64
@@ -24,6 +26,8 @@
 #define NOISE_SCALE 150.0
 
 #define TERRAIN_EXTRACT_TYPE 1
+
+boost::mutex TerrainPager::req_mutex;
 
 typedef struct ExtractRequestHolder
 {
@@ -39,8 +43,8 @@ TerrainPager::TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node 
 	volume(&volume_load, &volume_unload, CHUNK_SIZE), manObj(sceneMgr->createManualObject("terrain")), lastPosition(0,0,0), 
 	extractQueue(Ogre::Root::getSingleton().getWorkQueue()), init(false)
 {
-	volume.setCompressionEnabled(true);
-	volume.setMaxNumberOfBlocksInMemory( 1024 );
+	//volume.setCompressionEnabled(true);
+	//volume.setMaxNumberOfBlocksInMemory( 1024 );
 
 	node->attachObject(manObj);
 
@@ -59,7 +63,7 @@ PolyVox::Material8 TerrainPager::getVoxelAt( const PolyVox::Vector3DInt32 &vec )
 
 void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Material8 mat )
 {
-	boost::unique_lock<boost::mutex>(resp_mutex);
+	boost::mutex::scoped_lock lock(req_mutex);
 
 	if( vec.getY() < 0 || vec.getY() > CHUNK_SIZE-1 )
 	{
@@ -111,6 +115,8 @@ Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::R
 
 	std::cout << "Start Extract" << std::endl;
 	extract( data->region, data->poly_mesh );
+
+	usleep(1000);
 	
 	std::cout << "Done" << std::endl;
 	return new Ogre::WorkQueue::Response( req, true, req->getData() );
@@ -128,7 +134,7 @@ bool TerrainPager::canHandleResponse (const Ogre::WorkQueue::Response *res, cons
 void TerrainPager::handleResponse (const Ogre::WorkQueue::Response *res, const Ogre::WorkQueue *srcQ)
 {
 	// lock
-	boost::unique_lock<boost::mutex> lock(resp_mutex);
+	boost::mutex::scoped_lock lock(resp_mutex);
 	ExtractRequest *req = res->getRequest()->getData().get<ExtractRequest*>();
 
 	if( req->new_mesh )
@@ -228,31 +234,42 @@ void TerrainPager::regenerateMesh( const Ogre::Vector3 &position )
 	lastPosition = position;
 }
 
+bool raycastIsPassable( const PolyVox::LargeVolume<PolyVox::Material8>::Sampler &sampler )
+{
+	if( sampler.getVoxel().getMaterial() == 0 )
+		return true;
+	return false;
+}
+
 void TerrainPager::raycast( const PolyVox::Vector3DFloat &start, const PolyVox::Vector3DFloat &dir, PolyVox::RaycastResult &result )
 {
-	PolyVox::Raycast<PolyVox::LargeVolume, PolyVox::Material8> caster(&volume, start, dir, result);
+	boost::mutex::scoped_lock lock(req_mutex);
+	
+	PolyVox::Raycast< PolyVox::LargeVolume<PolyVox::Material8> > caster(&volume, start, dir, result, raycastIsPassable);
 
 	caster.execute();
 }
 
 void TerrainPager::extract( const PolyVox::Region &region, PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh )
 {
+	boost::mutex::scoped_lock lock(req_mutex);
+
 	PolyVox::Region new_region;
 
 	new_region.setUpperCorner( region.getUpperCorner() - PolyVox::Vector3DInt32(1, 0, 1) );
 	new_region.setLowerCorner( region.getLowerCorner() );
 
-	req_mutex.lock();
 	volume.prefetch( region );
 
 	std::cout << "create extractor" << std::endl;
-	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume, PolyVox::Material8> suf(&volume, new_region, &surf_mesh, false);
+	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume<PolyVox::Material8> > suf(&volume, new_region, &surf_mesh, false);
 
-	//req_mutex.lock();
 	std::cout << "run extractor" << std::endl;
 	suf.execute();
 	std::cout << "extractor done" << std::endl;
-	req_mutex.unlock();
+
+	std::cout << "extract() done" << std::endl;
+
 }
 
 void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh )
@@ -282,11 +299,11 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 
 		manObj->position(v3dFinalVertexPos.getX(), v3dFinalVertexPos.getY(), v3dFinalVertexPos.getZ());
 
-		float mat = vertex.getMaterial() - 1;
+		uint8_t mat = vertex.getMaterial() - 1;
 		
-		if( rand() > RAND_MAX/1.5 ) 
+		if( rand() < RAND_MAX/100 ) 
 		{
-			mat += 10;
+			mat += 1;
 		}
 
 		manObj->colour(mat, mat, mat);
@@ -317,7 +334,7 @@ TerrainPager::chunkCoord TerrainPager::toChunkCoord( const PolyVox::Vector3DInt3
 // volume paging functions
 void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region )
 {
-	boost::unique_lock<boost::mutex>(req_mutex);
+	//boost::mutex::scoped_lock lock(req_mutex);
 
 	if( region.getLowerCorner().getY() != 0 )
 	{
@@ -345,6 +362,7 @@ void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Materia
 void TerrainPager::volume_unload( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region )
 {
 	//boost::unique_lock<boost::mutex>(req_mutex);
+	//boost::mutex::scoped_lock lock(req_mutex);
 	//std::cout << "Unloading chunk " << region.getLowerCorner() << "->" << region.getUpperCorner() << std::endl;
 }
 

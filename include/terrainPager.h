@@ -73,7 +73,7 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		// Work queue for loading terrain in the background
 		Ogre::WorkQueue *extractQueue;
 		int queueChannel;
-		boost::mutex req_mutex;
+		static boost::mutex req_mutex;
 		boost::mutex resp_mutex;
 		boost::mutex mutex;
 
