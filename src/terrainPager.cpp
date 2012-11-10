@@ -52,6 +52,48 @@ TerrainPager::TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node 
 	extractQueue->startup();
 }
 
+PolyVox::Material8 TerrainPager::getVoxelAt( const PolyVox::Vector3DInt32 &vec )
+{
+	return volume.getVoxelAt( vec );
+}
+
+void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Material8 mat )
+{
+	boost::unique_lock<boost::mutex>(resp_mutex);
+
+	if( vec.getY() < 0 || vec.getY() > CHUNK_SIZE-1 )
+	{
+		std::cout << "setVoxelAt: out of bounds: " << vec << std::endl;
+		return;
+	}
+	volume.setVoxelAt( vec, mat );
+
+	// mark region and neighbors as dirty
+	chunkCoord coord = toChunkCoord(vec);
+
+	chunkDirty[ coord ] = true;
+	
+	if( vec.getX() % CHUNK_SIZE == 0 )
+	{
+		chunkDirty[ std::make_pair(coord.first-1, coord.second)] = true;
+	}
+
+	if( vec.getX()+1 % CHUNK_SIZE == 0 )
+	{
+		chunkDirty[ std::make_pair(coord.first+1, coord.second)] = true;
+	}
+
+	if( vec.getZ() % CHUNK_SIZE == 0 )
+	{
+		chunkDirty[ std::make_pair(coord.first, coord.second-1)] = true;
+	}
+
+	if( vec.getZ()+1 % CHUNK_SIZE == 0 )
+	{
+		chunkDirty[ std::make_pair(coord.first, coord.second+1)] = true;
+	}
+}
+
 bool TerrainPager::canHandleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ)
 {
 	if( req->getType() == TERRAIN_EXTRACT_TYPE )
@@ -71,10 +113,6 @@ Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::R
 
 	extract( data->region, data->poly_mesh );
 	
-	//std::cout << "Request" << std::endl;
-	//std::cout << "vertex count = " << data->poly_mesh.getVertices().size() << std::endl;
-	//std::cout << "vertex[0] = " << data->poly_mesh.getVertices()[100].getPosition() << std::endl;
-
 	std::cout << "Done" << std::endl;
 	return new Ogre::WorkQueue::Response( req, true, req->getData() );
 }
@@ -104,14 +142,21 @@ void TerrainPager::handleResponse (const Ogre::WorkQueue::Response *res, const O
 		manObj->beginUpdate( chunkToMesh[req->coord] );
 	}
 
-	genMesh( req->region, req->poly_mesh, req->new_mesh );
+	genMesh( req->region, req->poly_mesh );
 
 	manObj->end();
 
-	// add chunk to map
-	chunkToMesh[req->coord] = manObj->getNumSections();
+	if( req->new_mesh )
+	{
+		// add chunk to map
+		chunkToMesh[req->coord] = manObj->getNumSections();
+		std::cout << "Num sections: " << manObj->getNumSections() << std::endl;
+		std::cout << "coord = " << req->coord.first << ", " << req->coord.second << std::endl;
+		std::cout << "chunkToMesh.size() = " << chunkToMesh.size() << std::endl;
+	}
 
 	chunkProcessing[req->coord] = false;
+	chunkDirty[req->coord] = false;
 	delete req;
 }
 
@@ -141,14 +186,14 @@ void TerrainPager::regenerateMesh( const Ogre::Vector3 &position )
 				manObj->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
 
 				extract( req->region, req->poly_mesh );
-				genMesh( req->region, req->poly_mesh, req->new_mesh );
+				genMesh( req->region, req->poly_mesh );
 				
 				manObj->end();
 
 				// add chunk to map
 				chunkToMesh[req->coord] = manObj->getNumSections();
 #else
-				if( chunkProcessing.find( coord ) == chunkProcessing.end() )
+				if( chunkProcessing[ coord ] == false )
 				{
 					chunkProcessing[ coord ] = true;
 					extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
@@ -157,14 +202,26 @@ void TerrainPager::regenerateMesh( const Ogre::Vector3 &position )
 			}
 			else
 			{
-				if( false )
+				if( chunkDirty[coord] == true )
 				{
-					if( chunkProcessing.find( coord ) == chunkProcessing.end() )
+#ifndef BACKGROUND_LOAD
+					manObj->beginUpdate( chunkToMesh[ coord ] );
+
+					extract( req->region, req->poly_mesh );
+					genMesh( req->region, req->poly_mesh );
+					
+					manObj->end();
+
+#else
+					if( chunkProcessing[ coord ] == false )
 					{
+						std::cout << "Regenerate chunk: (" << coord.first << ", " << coord.second << ")" << std::endl;
 						chunkProcessing[ coord ] = true;
 						extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
 					}
+#endif
 				}
+				chunkDirty[coord] = false;
 			}
 		}
 	}
@@ -192,7 +249,7 @@ void TerrainPager::extract( const PolyVox::Region &region, PolyVox::SurfaceMesh<
 	suf.execute();
 }
 
-void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh, bool new_mesh )
+void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh )
 {
 	const std::vector<PolyVox::PositionMaterial>& vecVertices = surf_mesh.getVertices();
 	const std::vector<uint32_t>& vecIndices = surf_mesh.getIndices();
@@ -251,7 +308,12 @@ TerrainPager::chunkCoord TerrainPager::toChunkCoord( const PolyVox::Vector3DInt3
 // volume paging functions
 void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region )
 {
-	boost::unique_lock<boost::mutex>(req_mutex);
+	if( region.getLowerCorner().getY() != 0 )
+	{
+		//std::cout << "Loading bad region: " << region.getLowerCorner() << "->" << region.getUpperCorner() << std::endl;
+		return;
+	}
+
 	for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )
 	{
 		for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
@@ -260,6 +322,8 @@ void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Materia
 
 			for( int y = 0; y < std::min(height, CHUNK_SIZE - 1.0); y++ )
 			{
+				boost::unique_lock<boost::mutex>(req_mutex);
+
 				PolyVox::Material8 voxel = vol.getVoxelAt(x, y, z);
 				voxel.setMaterial(1);
 				vol.setVoxelAt(x,y,z, voxel);
@@ -270,7 +334,7 @@ void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Materia
 
 void TerrainPager::volume_unload( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region )
 {
-	boost::unique_lock<boost::mutex>(req_mutex);
+	//boost::unique_lock<boost::mutex>(req_mutex);
 	//std::cout << "Unloading chunk " << region.getLowerCorner() << "->" << region.getUpperCorner() << std::endl;
 }
 

@@ -26,7 +26,7 @@ This source file is part of the
 #include "PolyVoxCore/SurfaceMesh.h"
 #include "PolyVoxCore/Raycast.h"
 
-#define VOXEL_SCALE 10.0
+#define VOXEL_SCALE 1.0
 #define MODIFY_RADIUS 5.0
 
 using namespace std;
@@ -36,15 +36,12 @@ void BasicTutorial3::doTerrainUpdate()
 	terrain->regenerateMesh( mCamera->getPosition() );
 }
 
-void createSphereInVolume(PolyVox::LargeVolume<PolyVox::Material<uint8_t> >& volData, float fRadius, PolyVox::Vector3DInt32 _center, uint8_t material)
+void createSphereInVolume(TerrainPager* volData, float fRadius, PolyVox::Vector3DInt32 _center, uint8_t material)
 {
 	PolyVox::Vector3DFloat center( _center.getX(), _center.getY(), _center.getZ() );
 
 	//This vector hold the position of the center of the volume
-	PolyVox::Region volRegion(volData.getEnclosingRegion());
-
-	PolyVox::Vector3DFloat v3dVolCenter( (volRegion.getLowerCorner() + volRegion.getUpperCorner()) );
-	v3dVolCenter /= 2.0f;
+	PolyVox::Region volRegion(volData->getEnclosingRegion());
 
 	//This three-level for loop iterates over every voxel in the volume
 	for (int z = max(center.getZ() - fRadius, (float)volRegion.getLowerCorner().getZ()); z < min(center.getZ() + fRadius, (float)volRegion.getUpperCorner().getZ()); z++)
@@ -63,15 +60,15 @@ void createSphereInVolume(PolyVox::LargeVolume<PolyVox::Material<uint8_t> >& vol
 				{
 					PolyVox::Vector3DInt32 point(x,y,z);
 
-					if( volData.getEnclosingRegion().containsPoint(point) )
+					if( volRegion.containsPoint(point) )
 					{
 						//Get the old voxel
-						PolyVox::Material<uint8_t>  voxel = volData.getVoxelAt(point);
+						PolyVox::Material<uint8_t>  voxel = volData->getVoxelAt(point);
 
 						voxel.setMaterial(material);
 
 						//Wrte the voxel value into the volume
-						volData.setVoxelAt( point, voxel);
+						volData->setVoxelAt( point, voxel);
 					}
 				}
 			}
@@ -130,12 +127,14 @@ void BasicTutorial3::createScene(void)
 {
 	createCursor(MODIFY_RADIUS);
 
-	//mCamera->setPosition(Ogre::Vector3(1683, 50, 2116));
-	//mCamera->lookAt(Ogre::Vector3(1963, 50, 1660));
-	mCamera->setPosition(Ogre::Vector3(0, 50, 0));
-	mCamera->lookAt(Ogre::Vector3(100, 50, 0));
+	mCameraMan->setTopSpeed(2.0);
+
+	mCamera->setPosition(Ogre::Vector3(0, 33, 0));
+	mCamera->lookAt(Ogre::Vector3(100, 33, 0));
 	mCamera->setNearClipDistance(0.1);
 	mCamera->setFarClipDistance(50000);
+
+	dragLook = true;
 
 	if (mRoot->getRenderSystem()->getCapabilities()->hasCapability(Ogre::RSC_INFINITE_FAR_PLANE))
 	{
@@ -232,29 +231,9 @@ bool BasicTutorial3::frameRenderingQueued(const Ogre::FrameEvent& evt)
 // OIS::KeyListener
 bool BasicTutorial3::keyPressed( const OIS::KeyEvent& evt )
 {
-	//doTerrainUpdate();
 	bool ret = BaseApplication::keyPressed( evt );
-	return ret;
-}
 
-bool BasicTutorial3::keyReleased( const OIS::KeyEvent& evt )
-{
-	//doTerrainUpdate();
-	mCameraMan->injectKeyUp(evt);
-	return true;
-}
-
-// OIS::MouseListener
-bool BasicTutorial3::mouseMoved( const OIS::MouseEvent& evt )
-{
-	mCameraMan->injectMouseMove(evt);
-
-	return true;
-}
-
-bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonID id )
-{
-	if( id == OIS::MB_Left || id == OIS::MB_Right )
+	if( evt.key == OIS::KC_E || evt.key == OIS::KC_R )
 	{
 		PolyVox::Vector3DFloat start(mCamera->getPosition().x/VOXEL_SCALE, mCamera->getPosition().y/VOXEL_SCALE, mCamera->getPosition().z/VOXEL_SCALE );
 		PolyVox::Vector3DFloat dir(mCamera->getDirection().x, mCamera->getDirection().y, mCamera->getDirection().z );
@@ -268,17 +247,45 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 
 		if( result.foundIntersection )
 		{
-			if( id == OIS::MB_Left )
+			if( evt.key == OIS::KC_E )
 			{
-				//createSphereInVolume( volume, MODIFY_RADIUS, result.previousVoxel, 1 );
+				createSphereInVolume( terrain, MODIFY_RADIUS, result.previousVoxel, 1 );
 			}
-			else if( id == OIS::MB_Right )
+			else if( evt.key == OIS::KC_R)
 			{
-				//createSphereInVolume( volume, MODIFY_RADIUS, result.intersectionVoxel, 0 );
+				createSphereInVolume( terrain, MODIFY_RADIUS, result.intersectionVoxel, 0 );
 			}
 
 			doTerrainUpdate();
 		}
+	}
+
+	return ret;
+}
+
+bool BasicTutorial3::keyReleased( const OIS::KeyEvent& evt )
+{
+	mCameraMan->injectKeyUp(evt);
+	return true;
+}
+
+// OIS::MouseListener
+bool BasicTutorial3::mouseMoved( const OIS::MouseEvent& evt )
+{
+	if (mTrayMgr->injectMouseMove(evt)) return true;
+
+	mCameraMan->injectMouseMove(evt);
+	return true;
+}
+
+bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonID id )
+{
+	if (mTrayMgr->injectMouseDown(evt, id)) return true;
+
+	if( dragLook && id == OIS::MB_Left )
+	{
+		mCameraMan->setStyle(OgreBites::CS_FREELOOK);
+		mTrayMgr->hideCursor();
 	}
 
 	mCameraMan->injectMouseDown(evt, id);
@@ -287,6 +294,14 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 
 bool BasicTutorial3::mouseReleased( const OIS::MouseEvent& evt, OIS::MouseButtonID id )
 {
+	if (mTrayMgr->injectMouseUp(evt, id)) return true;
+
+	if( dragLook && id == OIS::MB_Left )
+	{
+		mCameraMan->setStyle(OgreBites::CS_MANUAL);
+		mTrayMgr->showCursor();
+	}
+
 	mCameraMan->injectMouseUp(evt, id);
 	return true;
 }

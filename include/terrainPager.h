@@ -34,6 +34,12 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		static void volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 		static void volume_unload( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 
+		// volume interface
+		PolyVox::Region getEnclosingRegion() { return volume.getEnclosingRegion(); }
+		PolyVox::Material8 getVoxelAt( const PolyVox::Vector3DInt32 &vec );
+		void setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Material8 mat );
+
+		// lock
 		void lock() { mutex.lock(); }
 		void unlock() { mutex.unlock(); }
 	private:
@@ -47,7 +53,7 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 
 		// extract the region into new/updated mesh
 		void extract( const PolyVox::Region &region, PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh );
-		void genMesh( const PolyVox::Region &region, const PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh, bool new_mesh );
+		void genMesh( const PolyVox::Region &region, const PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh );
 
 		// convert the region into the chunk coordinates
 		chunkCoord toChunkCoord( const PolyVox::Vector3DInt32 &vec );
@@ -77,6 +83,7 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		// mapping from chunk coord to mesh id
 		std::map<chunkCoord, int> chunkToMesh;
 		std::map<chunkCoord, bool> chunkProcessing;
+		std::map<chunkCoord, bool> chunkDirty;
 };
 
 #endif

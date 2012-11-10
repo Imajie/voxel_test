@@ -31,6 +31,8 @@ private:
 	TerrainPager *terrain;
 	Ogre::SceneNode *mCursor;
 
+	bool dragLook;
+
 	void doTerrainUpdate();
 	void createCursor( float radius );
 
