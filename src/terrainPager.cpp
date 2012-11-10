@@ -105,12 +105,11 @@ bool TerrainPager::canHandleRequest (const Ogre::WorkQueue::Request *req, const 
 
 Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ)
 {
-	// lock
-	boost::unique_lock<boost::mutex> lock(req_mutex);
 	std::cout << "Request" << std::endl;
 
 	ExtractRequest *data = req->getData().get<ExtractRequest*>();
 
+	std::cout << "Start Extract" << std::endl;
 	extract( data->region, data->poly_mesh );
 	
 	std::cout << "Done" << std::endl;
@@ -135,7 +134,7 @@ void TerrainPager::handleResponse (const Ogre::WorkQueue::Response *res, const O
 	if( req->new_mesh )
 	{
 		// add chunk to map
-		manObj->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
+		manObj->begin("VoxelTexture", Ogre::RenderOperation::OT_TRIANGLE_LIST);
 	}
 	else
 	{
@@ -243,10 +242,17 @@ void TerrainPager::extract( const PolyVox::Region &region, PolyVox::SurfaceMesh<
 	new_region.setUpperCorner( region.getUpperCorner() - PolyVox::Vector3DInt32(1, 0, 1) );
 	new_region.setLowerCorner( region.getLowerCorner() );
 
+	req_mutex.lock();
 	volume.prefetch( region );
-	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume, PolyVox::Material8> suf(&volume, new_region, &surf_mesh);
 
+	std::cout << "create extractor" << std::endl;
+	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume, PolyVox::Material8> suf(&volume, new_region, &surf_mesh, false);
+
+	//req_mutex.lock();
+	std::cout << "run extractor" << std::endl;
 	suf.execute();
+	std::cout << "extractor done" << std::endl;
+	req_mutex.unlock();
 }
 
 void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh )
@@ -276,11 +282,14 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 
 		manObj->position(v3dFinalVertexPos.getX(), v3dFinalVertexPos.getY(), v3dFinalVertexPos.getZ());
 
-		uint8_t red = ((int)abs(vertex.getPosition().getY())) % 256;
-		uint8_t green = ((int)abs(vertex.getPosition().getZ())*3) % 256;
-		uint8_t blue = ((int)abs(vertex.getPosition().getX())*5) % 256;
+		float mat = vertex.getMaterial() - 1;
+		
+		if( rand() > RAND_MAX/1.5 ) 
+		{
+			mat += 10;
+		}
 
-		manObj->colour(red, green, blue);
+		manObj->colour(mat, mat, mat);
 	}
 }
 
@@ -308,6 +317,8 @@ TerrainPager::chunkCoord TerrainPager::toChunkCoord( const PolyVox::Vector3DInt3
 // volume paging functions
 void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region )
 {
+	boost::unique_lock<boost::mutex>(req_mutex);
+
 	if( region.getLowerCorner().getY() != 0 )
 	{
 		//std::cout << "Loading bad region: " << region.getLowerCorner() << "->" << region.getUpperCorner() << std::endl;
@@ -322,7 +333,6 @@ void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Materia
 
 			for( int y = 0; y < std::min(height, CHUNK_SIZE - 1.0); y++ )
 			{
-				boost::unique_lock<boost::mutex>(req_mutex);
 
 				PolyVox::Material8 voxel = vol.getVoxelAt(x, y, z);
 				voxel.setMaterial(1);

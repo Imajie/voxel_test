@@ -1,0 +1,47 @@
+vertex_program VoxelTexture_VP glsl
+{
+	source VoxelTexture.glslv
+		entry_point main
+		profiles arbvp1
+		default_params
+		{
+			param_named_auto worldMatrix world_matrix
+				param_named_auto viewProj viewproj_matrix
+		}
+}
+
+fragment_program VoxelTexture_FP glsl
+{
+	source VoxelTexture.glslf
+		entry_point main
+		profiles arbfp1
+}
+
+material VoxelTexture
+{
+	receive_shadows on
+		technique
+		{
+			pass
+			{
+				vertex_program_ref VoxelTexture_VP
+				{
+
+				}
+
+				fragment_program_ref VoxelTexture_FP
+				{
+					param_named Atlas int 0
+
+				}
+
+				texture_unit
+				{
+					texture terrain.dds 2d
+						filtering linear linear linear
+						max_anisotropy 4
+						tex_address_mode wrap
+				}
+			}
+		}
+}
