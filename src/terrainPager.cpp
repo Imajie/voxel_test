@@ -28,6 +28,7 @@ typedef struct ExtractRequestHolder
 	PolyVox::Region region;
 	TerrainPager::chunkCoord coord;
 	bool new_mesh;
+	PolyVox::SurfaceMesh<PolyVox::PositionMaterial> poly_mesh;
 	friend std::ostream& operator<<(std::ostream& os, const struct ExtractRequestHolder &region) { return os; }
 
 } ExtractRequest;
@@ -59,19 +60,15 @@ bool TerrainPager::canHandleRequest (const Ogre::WorkQueue::Request *req, const 
 
 Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ)
 {
-	std::cout << "Queue called" << std::endl;
 	// lock
 	boost::unique_lock<boost::mutex> lock(mutex);
 
-	ExtractRequest data = req->getData().get<ExtractRequest>();
+	ExtractRequest *data = req->getData().get<ExtractRequest*>();
 
-	if( data.new_mesh )
+	if( data->new_mesh )
 	{
 		// add chunk to map
-		chunkToMesh[data.coord] = submeshes.size();
-
-		Ogre::SubMesh *sub = mesh->createSubMesh();
-		submeshes.push_back( sub );
+		Ogre::SubMesh *sub = submeshes[ chunkToMesh[data->coord] ];
 
 		sub->useSharedVertices = false;
 		sub->vertexData = new Ogre::VertexData();
@@ -93,10 +90,8 @@ Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::R
 		//mesh->beginUpdate( chunkToMesh[data.coord] );
 	}
 
-	volume.prefetch( data.region );
-	extract( data.region, data.new_mesh );
-
-	//mesh->end();
+	volume.prefetch( data->region );
+	extract( data->region, data->poly_mesh );
 
 	return new Ogre::WorkQueue::Response( req, true, req->getData() );
 }
@@ -112,7 +107,13 @@ bool TerrainPager::canHandleResponse (const Ogre::WorkQueue::Response *res, cons
 
 void TerrainPager::handleResponse (const Ogre::WorkQueue::Response *res, const Ogre::WorkQueue *srcQ)
 {
-	// do nothing
+	// lock
+	//boost::unique_lock<boost::mutex> lock(mutex);
+	ExtractRequest *req = res->getRequest()->getData().get<ExtractRequest*>();
+
+	genMesh( req->region, req->poly_mesh, req->new_mesh );
+
+	delete req;
 }
 
 // regenerate the mesh for our new position, if needed
@@ -128,41 +129,22 @@ void TerrainPager::regenerateMesh( const Ogre::Vector3 &position )
 			chunkCoord coord = std::make_pair(x,z);
 			PolyVox::Region region = toRegion(coord);
 
-			ExtractRequest req;
-			req.region = region;
-			req.coord = coord;
-			req.new_mesh = false;
+			ExtractRequest *req = new ExtractRequest;
+			req->region = region;
+			req->coord = coord;
+			req->new_mesh = false;
 
 			if( chunkToMesh.find( coord ) == chunkToMesh.end() )
 			{
-				//volume.prefetch( region );
+				req->new_mesh = true;
 
-				req.new_mesh = true;
-
-				// TODO
 				// add chunk to map
-				chunkToMesh[req.coord] = submeshes.size();
+				chunkToMesh[req->coord] = submeshes.size();
 
 				Ogre::SubMesh *sub = mesh->createSubMesh();
 				submeshes.push_back( sub );
 
-				sub->useSharedVertices = false;
-				sub->vertexData = new Ogre::VertexData();
-
-				Ogre::VertexDeclaration *decl = sub->vertexData->vertexDeclaration;
-
-				// our nodes are only position and color
-				size_t offset = 0;
-				decl->addElement( 0, offset, Ogre::VET_FLOAT3, Ogre::VES_POSITION );
-				offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
-
-				decl->addElement( 1, offset, Ogre::VET_COLOUR, Ogre::VES_DIFFUSE );
-				offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
-
-				extract( req.region, req.new_mesh );
-
-				//TODO
-				//extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
+				extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
 			}
 			else
 			{
@@ -184,12 +166,8 @@ void TerrainPager::raycast( const PolyVox::Vector3DFloat &start, const PolyVox::
 	caster.execute();
 }
 
-void TerrainPager::extract( const PolyVox::Region &region, bool new_mesh )
+void TerrainPager::extract( const PolyVox::Region &region, PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh )
 {
-	//std::cout << "Extract: " << region.getLowerCorner() << "->" << region.getUpperCorner() << std::endl;
-	
-	PolyVox::SurfaceMesh<PolyVox::PositionMaterial> surf_mesh;
-
 	PolyVox::Region new_region;
 
 	new_region.setUpperCorner( region.getUpperCorner() - PolyVox::Vector3DInt32(1, 0, 1) );
@@ -197,10 +175,11 @@ void TerrainPager::extract( const PolyVox::Region &region, bool new_mesh )
 
 	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume, PolyVox::Material8> suf(&volume, new_region, &surf_mesh);
 
-	//std::cout << "Pre-extract" << std::endl;
 	suf.execute();
-	//std::cout << "Post-extract" << std::endl;
+}
 
+void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh, bool new_mesh )
+{
 	const std::vector<PolyVox::PositionMaterial>& vecVertices = surf_mesh.getVertices();
 	const std::vector<uint32_t>& vecIndices = surf_mesh.getIndices();
 
@@ -217,28 +196,19 @@ void TerrainPager::extract( const PolyVox::Region &region, bool new_mesh )
 
 	if( new_mesh )
 	{
-		//std::cout << "New mesh, creating buffers" << std::endl;
-
 		// allocate buffer space
 		Ogre::HardwareVertexBufferSharedPtr vbuf = 
 			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( 
-					submesh->vertexData->vertexDeclaration->getVertexSize(0), vecIndices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
-
-		//std::cout << "Vertex created" << std::endl;
+					submesh->vertexData->vertexDeclaration->getVertexSize(0), beginIndex-endIndex, Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
 
 		Ogre::HardwareVertexBufferSharedPtr cbuf = 
 			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( 
-					submesh->vertexData->vertexDeclaration->getVertexSize(1), vecIndices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
-
-		//std::cout << "Color created" << std::endl;
+					submesh->vertexData->vertexDeclaration->getVertexSize(1), beginIndex-endIndex, Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
 
 		Ogre::HardwareIndexBufferSharedPtr ibuf = 
 			Ogre::HardwareBufferManager::getSingleton().createIndexBuffer( 
-					Ogre::HardwareIndexBuffer::IT_16BIT, vecIndices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+					Ogre::HardwareIndexBuffer::IT_16BIT, beginIndex-endIndex, Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
 
-		//std::cout << "index created" << std::endl;
-
-		//std::cout << "Binding buffers" << std::endl;
 
 		// bind them
 		// vertex

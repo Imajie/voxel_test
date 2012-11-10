@@ -44,7 +44,8 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		virtual void handleResponse (const Ogre::WorkQueue::Response *res, const Ogre::WorkQueue *srcQ);
 
 		// extract the region into new/updated mesh
-		void extract( const PolyVox::Region &region, bool new_mesh );
+		void extract( const PolyVox::Region &region, PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh );
+		void genMesh( const PolyVox::Region &region, const PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh, bool new_mesh );
 
 		// convert the region into the chunk coordinates
 		chunkCoord toChunkCoord( const PolyVox::Vector3DInt32 &vec );
