@@ -222,19 +222,19 @@ void TerrainPager::extract( const PolyVox::Region &region, bool new_mesh )
 		// allocate buffer space
 		Ogre::HardwareVertexBufferSharedPtr vbuf = 
 			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( 
-					submesh->vertexData->vertexDeclaration->getVertexSize(0), vecVertices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+					submesh->vertexData->vertexDeclaration->getVertexSize(0), vecIndices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
 
 		//std::cout << "Vertex created" << std::endl;
 
 		Ogre::HardwareVertexBufferSharedPtr cbuf = 
 			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( 
-					submesh->vertexData->vertexDeclaration->getVertexSize(1), vecVertices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+					submesh->vertexData->vertexDeclaration->getVertexSize(1), vecIndices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
 
 		//std::cout << "Color created" << std::endl;
 
 		Ogre::HardwareIndexBufferSharedPtr ibuf = 
 			Ogre::HardwareBufferManager::getSingleton().createIndexBuffer( 
-					Ogre::HardwareIndexBuffer::IT_16BIT, endIndex-beginIndex, Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+					Ogre::HardwareIndexBuffer::IT_16BIT, vecIndices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
 
 		//std::cout << "index created" << std::endl;
 
