@@ -10,6 +10,10 @@
 #include <PolyVoxCore/CubicSurfaceExtractor.h>
 #include <vector>
 #include <OgreRoot.h>
+#include <OgreMeshManager.h>
+#include <OgreEntity.h>
+#include <OgreMesh.h>
+#include <OgreSubMesh.h>
 
 #include <boost/thread/mutex.hpp>
 
@@ -32,7 +36,8 @@ TerrainPager::TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node 
 	volume(&volume_load, &volume_unload, CHUNK_SIZE), mesh(Ogre::MeshManager::getSingleton().createManual("terrain", "General")), lastPosition(0,0,0), 
 	extractQueue(Ogre::Root::getSingleton().getWorkQueue()), init(false)
 {
-	Ogre::Entity *entity = sceneMgr->createEntity("terrain");
+	Ogre::Entity *entity = sceneMgr->createEntity(mesh);
+	entity->setMaterialName("BaseWhiteNoLighting");
 	node->attachObject(entity);
 
 	queueChannel = extractQueue->getChannel("Terrain/Page");
@@ -54,6 +59,7 @@ bool TerrainPager::canHandleRequest (const Ogre::WorkQueue::Request *req, const 
 
 Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ)
 {
+	std::cout << "Queue called" << std::endl;
 	// lock
 	boost::unique_lock<boost::mutex> lock(mutex);
 
@@ -67,18 +73,18 @@ Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::R
 		Ogre::SubMesh *sub = mesh->createSubMesh();
 		submeshes.push_back( sub );
 
-		sub->useSharedVerticies = false;
+		sub->useSharedVertices = false;
 		sub->vertexData = new Ogre::VertexData();
 
 		Ogre::VertexDeclaration *decl = sub->vertexData->vertexDeclaration;
 
 		// our nodes are only position and color
 		size_t offset = 0;
-		decl->addElement( 0, offset, VET_FLOAT3, VES_POSITION );
-		offset += Ogre::VertexElement::getTypeSize( VET_FLOAT3 );
+		decl->addElement( 0, offset, Ogre::VET_FLOAT3, Ogre::VES_POSITION );
+		offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
 
-		decl->addElement( 0, offset, VET_FLOAT3, VES_COLOR );
-		offset += Ogre::VertexElement::getTypeSize( VET_FLOAT3 );
+		decl->addElement( 1, offset, Ogre::VET_COLOUR, Ogre::VES_DIFFUSE );
+		offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
 
 		//mesh->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
 	}
@@ -132,7 +138,31 @@ void TerrainPager::regenerateMesh( const Ogre::Vector3 &position )
 				//volume.prefetch( region );
 
 				req.new_mesh = true;
-				extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
+
+				// TODO
+				// add chunk to map
+				chunkToMesh[req.coord] = submeshes.size();
+
+				Ogre::SubMesh *sub = mesh->createSubMesh();
+				submeshes.push_back( sub );
+
+				sub->useSharedVertices = false;
+				sub->vertexData = new Ogre::VertexData();
+
+				Ogre::VertexDeclaration *decl = sub->vertexData->vertexDeclaration;
+
+				// our nodes are only position and color
+				size_t offset = 0;
+				decl->addElement( 0, offset, Ogre::VET_FLOAT3, Ogre::VES_POSITION );
+				offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
+
+				decl->addElement( 1, offset, Ogre::VET_COLOUR, Ogre::VES_DIFFUSE );
+				offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
+
+				extract( req.region, req.new_mesh );
+
+				//TODO
+				//extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
 			}
 			else
 			{
@@ -156,7 +186,7 @@ void TerrainPager::raycast( const PolyVox::Vector3DFloat &start, const PolyVox::
 
 void TerrainPager::extract( const PolyVox::Region &region, bool new_mesh )
 {
-	std::cout << "Extract: " << region.getLowerCorner() << "->" << region.getUpperCorner() << std::endl;
+	//std::cout << "Extract: " << region.getLowerCorner() << "->" << region.getUpperCorner() << std::endl;
 	
 	PolyVox::SurfaceMesh<PolyVox::PositionMaterial> surf_mesh;
 
@@ -167,9 +197,9 @@ void TerrainPager::extract( const PolyVox::Region &region, bool new_mesh )
 
 	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume, PolyVox::Material8> suf(&volume, new_region, &surf_mesh);
 
-	std::cout << "Pre-extract" << std::endl;
+	//std::cout << "Pre-extract" << std::endl;
 	suf.execute();
-	std::cout << "Post-extract" << std::endl;
+	//std::cout << "Post-extract" << std::endl;
 
 	const std::vector<PolyVox::PositionMaterial>& vecVertices = surf_mesh.getVertices();
 	const std::vector<uint32_t>& vecIndices = surf_mesh.getIndices();
@@ -183,16 +213,50 @@ void TerrainPager::extract( const PolyVox::Region &region, bool new_mesh )
 		std::cout << "Index count = 0" << std::endl;
 	}
 
-	Ogre::SubMesh *submesh = submeshes[ chunkToMesh[ toChunkCoord(region) ] ];
+	Ogre::SubMesh *submesh = submeshes[ chunkToMesh[ toChunkCoord(region.getLowerCorner()) ] ];
 
 	if( new_mesh )
 	{
+		//std::cout << "New mesh, creating buffers" << std::endl;
+
 		// allocate buffer space
 		Ogre::HardwareVertexBufferSharedPtr vbuf = 
-			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( submesh->vertexData->vertexDeclaration, vecVertices.size(), HBU_STATIC_WRITE_ONLY );
+			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( 
+					submesh->vertexData->vertexDeclaration->getVertexSize(0), vecVertices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+
+		//std::cout << "Vertex created" << std::endl;
+
+		Ogre::HardwareVertexBufferSharedPtr cbuf = 
+			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( 
+					submesh->vertexData->vertexDeclaration->getVertexSize(1), vecVertices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+
+		//std::cout << "Color created" << std::endl;
+
+		Ogre::HardwareIndexBufferSharedPtr ibuf = 
+			Ogre::HardwareBufferManager::getSingleton().createIndexBuffer( 
+					Ogre::HardwareIndexBuffer::IT_16BIT, endIndex-beginIndex, Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+
+		//std::cout << "index created" << std::endl;
+
+		//std::cout << "Binding buffers" << std::endl;
+
+		// bind them
+		// vertex
+		Ogre::VertexBufferBinding *bind = submesh->vertexData->vertexBufferBinding;
+		bind->setBinding(0, vbuf);
+		bind->setBinding(1, cbuf);
+
+		// index
+		submesh->indexData->indexBuffer = ibuf;
+		submesh->indexData->indexCount = endIndex-beginIndex;
+		submesh->indexData->indexStart = 0;
 	}
 
-	std::cout << "Adding mesh data" << std::endl;
+	float *vert_data = new float[(endIndex-beginIndex)*3];
+	uint8_t *color_data = new uint8_t[(endIndex-beginIndex)*3];
+	uint16_t *index_data = new uint16_t[endIndex-beginIndex];
+
+	//std::cout << "Adding mesh data" << std::endl;
 	for(int index = beginIndex; index < endIndex; ++index) {
 		const PolyVox::PositionMaterial& vertex = vecVertices[vecIndices[index]];
 
@@ -200,14 +264,41 @@ void TerrainPager::extract( const PolyVox::Region &region, bool new_mesh )
 
 		const PolyVox::Vector3DFloat v3dFinalVertexPos = v3dVertexPos + static_cast<PolyVox::Vector3DFloat>(surf_mesh.m_Region.getLowerCorner());
 
-		mesh->position(v3dFinalVertexPos.getX(), v3dFinalVertexPos.getY(), v3dFinalVertexPos.getZ());
+		vert_data[(index-beginIndex)*3 + 0] = v3dFinalVertexPos.getX();
+		vert_data[(index-beginIndex)*3 + 1] = v3dFinalVertexPos.getY();
+		vert_data[(index-beginIndex)*3 + 2] = v3dFinalVertexPos.getZ();
+
+		//mesh->position(v3dFinalVertexPos.getX(), v3dFinalVertexPos.getY(), v3dFinalVertexPos.getZ());
 
 		uint8_t red = ((int)abs(vertex.getPosition().getY())) % 256;
 		uint8_t green = ((int)abs(vertex.getPosition().getZ())*3) % 256;
 		uint8_t blue = ((int)abs(vertex.getPosition().getX())*5) % 256;
 
-		mesh->colour(red, green, blue);
+		color_data[(index-beginIndex)*3 + 0] = red;
+		color_data[(index-beginIndex)*3 + 1] = green;
+		color_data[(index-beginIndex)*3 + 2] = blue;
+
+		//mesh->colour(red, green, blue);
+
+		index_data[index-beginIndex] = index-beginIndex;
 	}
+
+	// write data to buffers
+	submesh->indexData->indexBuffer->writeData(0, submesh->indexData->indexBuffer->getSizeInBytes(), index_data, true);
+	submesh->vertexData->vertexBufferBinding->getBuffer(0)->writeData(
+			0, submesh->vertexData->vertexBufferBinding->getBuffer(0)->getSizeInBytes(), vert_data, true);
+	submesh->vertexData->vertexBufferBinding->getBuffer(1)->writeData(
+			0, submesh->vertexData->vertexBufferBinding->getBuffer(1)->getSizeInBytes(), color_data, true);
+
+	mesh->_setBounds(Ogre::AxisAlignedBox::BOX_INFINITE);
+	mesh->_setBoundingSphereRadius( 1000000 );
+	mesh->load();
+
+	// delete CPU side data
+	delete [] index_data;
+	delete [] vert_data;
+	delete [] color_data;
+
 }
 
 const PolyVox::Region TerrainPager::toRegion( const chunkCoord &coord )
