@@ -181,6 +181,18 @@ void BasicTutorial3::createFrameListener(void)
 	mKeyboard->setEventCallback(this);
 }
 //-------------------------------------------------------------------------------------
+bool BasicTutorial3::frameStarted(const Ogre::FrameEvent &evt)
+{
+	//terrain->lock();
+	return true;
+}
+//-------------------------------------------------------------------------------------
+bool BasicTutorial3::frameEnded(const Ogre::FrameEvent &evt)
+{
+	//terrain->unlock();
+	return true;
+}
+//-------------------------------------------------------------------------------------
 bool BasicTutorial3::frameRenderingQueued(const Ogre::FrameEvent& evt)
 {
 	bool ret = BaseApplication::frameRenderingQueued(evt);
@@ -220,12 +232,14 @@ bool BasicTutorial3::frameRenderingQueued(const Ogre::FrameEvent& evt)
 // OIS::KeyListener
 bool BasicTutorial3::keyPressed( const OIS::KeyEvent& evt )
 {
+	//doTerrainUpdate();
 	bool ret = BaseApplication::keyPressed( evt );
 	return ret;
 }
 
 bool BasicTutorial3::keyReleased( const OIS::KeyEvent& evt )
 {
+	//doTerrainUpdate();
 	mCameraMan->injectKeyUp(evt);
 	return true;
 }

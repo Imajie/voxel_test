@@ -43,6 +43,8 @@ protected:
     virtual void createFrameListener(void);
     virtual void destroyScene(void);
     virtual bool frameRenderingQueued(const Ogre::FrameEvent& evt);
+	virtual bool frameStarted(const Ogre::FrameEvent &evt);
+	virtual bool frameEnded(const Ogre::FrameEvent &evt);
 
 	// OIS::KeyListener
     virtual bool keyPressed( const OIS::KeyEvent& evt );

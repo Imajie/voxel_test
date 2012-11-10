@@ -34,6 +34,8 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		static void volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 		static void volume_unload( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 
+		void lock() { mutex.lock(); }
+		void unlock() { mutex.unlock(); }
 	private:
 		// Request handler interface
 		virtual bool canHandleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ);
@@ -57,8 +59,7 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		PolyVox::LargeVolume<PolyVox::Material8> volume;
 
 		// the ogre mesh
-		Ogre::MeshPtr mesh;
-		std::vector<Ogre::SubMesh*> submeshes;
+		Ogre::ManualObject *manObj;
 
 		// last player position
 		Ogre::Vector3 lastPosition;
@@ -66,6 +67,8 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		// Work queue for loading terrain in the background
 		Ogre::WorkQueue *extractQueue;
 		int queueChannel;
+		boost::mutex req_mutex;
+		boost::mutex resp_mutex;
 		boost::mutex mutex;
 
 		// initialized
@@ -73,6 +76,7 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 
 		// mapping from chunk coord to mesh id
 		std::map<chunkCoord, int> chunkToMesh;
+		std::map<chunkCoord, bool> chunkProcessing;
 };
 
 #endif
