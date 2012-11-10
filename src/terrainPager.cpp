@@ -17,6 +17,8 @@
 
 #include <boost/thread/mutex.hpp>
 
+//#define BACKGROUND_LOAD
+
 #define CHUNK_SIZE 64
 #define CHUNK_DIST 5
 #define NOISE_SCALE 150.0
@@ -62,27 +64,14 @@ Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::R
 {
 	// lock
 	boost::unique_lock<boost::mutex> lock(mutex);
+	std::cout << "Request" << std::endl;
 
 	ExtractRequest *data = req->getData().get<ExtractRequest*>();
 
 	if( data->new_mesh )
 	{
 		// add chunk to map
-		Ogre::SubMesh *sub = submeshes[ chunkToMesh[data->coord] ];
-
-		sub->useSharedVertices = false;
-		sub->vertexData = new Ogre::VertexData();
-
-		Ogre::VertexDeclaration *decl = sub->vertexData->vertexDeclaration;
-
-		// our nodes are only position and color
-		size_t offset = 0;
-		decl->addElement( 0, offset, Ogre::VET_FLOAT3, Ogre::VES_POSITION );
-		offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
-
-		decl->addElement( 1, offset, Ogre::VET_COLOUR, Ogre::VES_DIFFUSE );
-		offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
-
+		//Ogre::SubMesh *sub = submeshes[ chunkToMesh[data->coord] ];
 		//mesh->begin("BaseWhiteNoLighting", Ogre::RenderOperation::OT_TRIANGLE_LIST);
 	}
 	else
@@ -90,9 +79,14 @@ Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::R
 		//mesh->beginUpdate( chunkToMesh[data.coord] );
 	}
 
-	volume.prefetch( data->region );
+//	volume.prefetch( data->region );
 	extract( data->region, data->poly_mesh );
+	
+	//std::cout << "Request" << std::endl;
+	//std::cout << "vertex count = " << data->poly_mesh.getVertices().size() << std::endl;
+	//std::cout << "vertex[0] = " << data->poly_mesh.getVertices()[100].getPosition() << std::endl;
 
+	std::cout << "Done" << std::endl;
 	return new Ogre::WorkQueue::Response( req, true, req->getData() );
 }
 
@@ -142,9 +136,29 @@ void TerrainPager::regenerateMesh( const Ogre::Vector3 &position )
 				chunkToMesh[req->coord] = submeshes.size();
 
 				Ogre::SubMesh *sub = mesh->createSubMesh();
+
+				sub->setMaterialName("BaseWhiteNoLighting");
+				sub->useSharedVertices = false;
+				sub->vertexData = new Ogre::VertexData();
+
 				submeshes.push_back( sub );
 
+				Ogre::VertexDeclaration *decl = sub->vertexData->vertexDeclaration;
+
+				// our nodes are only position and color
+				size_t offset = 0;
+				decl->addElement( 0, offset, Ogre::VET_FLOAT3, Ogre::VES_POSITION );
+				offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
+
+				decl->addElement( 1, offset, Ogre::VET_COLOUR, Ogre::VES_DIFFUSE );
+				offset += Ogre::VertexElement::getTypeSize( Ogre::VET_FLOAT3 );
+
+#ifndef BACKGROUND_LOAD
+				extract( req->region, req->poly_mesh );
+				genMesh( req->region, req->poly_mesh, req->new_mesh );
+#else
 				extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
+#endif
 			}
 			else
 			{
@@ -157,6 +171,7 @@ void TerrainPager::regenerateMesh( const Ogre::Vector3 &position )
 	}
 
 	lastPosition = position;
+	mesh->load();
 }
 
 void TerrainPager::raycast( const PolyVox::Vector3DFloat &start, const PolyVox::Vector3DFloat &dir, PolyVox::RaycastResult &result )
@@ -183,13 +198,17 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 	const std::vector<PolyVox::PositionMaterial>& vecVertices = surf_mesh.getVertices();
 	const std::vector<uint32_t>& vecIndices = surf_mesh.getIndices();
 
+	//std::cout << "Response" << std::endl;
+	//std::cout << "vertex count = " << vecVertices.size() << std::endl;
+	//std::cout << "vertex[0] = " << vecVertices[100].getPosition() << std::endl;
+
 	unsigned int uLodLevel = 0;
 	int beginIndex = surf_mesh.m_vecLodRecords[uLodLevel].beginIndex;
 	int endIndex = surf_mesh.m_vecLodRecords[uLodLevel].endIndex;
 
 	if( endIndex == beginIndex )
 	{
-		std::cout << "Index count = 0" << std::endl;
+		std::cout << "Index count = " << endIndex-beginIndex << std::endl;
 	}
 
 	Ogre::SubMesh *submesh = submeshes[ chunkToMesh[ toChunkCoord(region.getLowerCorner()) ] ];
@@ -199,15 +218,15 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 		// allocate buffer space
 		Ogre::HardwareVertexBufferSharedPtr vbuf = 
 			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( 
-					submesh->vertexData->vertexDeclaration->getVertexSize(0), beginIndex-endIndex, Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+					submesh->vertexData->vertexDeclaration->getVertexSize(0), vecIndices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
 
 		Ogre::HardwareVertexBufferSharedPtr cbuf = 
 			Ogre::HardwareBufferManager::getSingleton().createVertexBuffer( 
-					submesh->vertexData->vertexDeclaration->getVertexSize(1), beginIndex-endIndex, Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+					submesh->vertexData->vertexDeclaration->getVertexSize(1), vecIndices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
 
 		Ogre::HardwareIndexBufferSharedPtr ibuf = 
 			Ogre::HardwareBufferManager::getSingleton().createIndexBuffer( 
-					Ogre::HardwareIndexBuffer::IT_16BIT, beginIndex-endIndex, Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
+					Ogre::HardwareIndexBuffer::IT_16BIT, vecIndices.size(), Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY );
 
 
 		// bind them
@@ -223,10 +242,11 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 	}
 
 	float *vert_data = new float[(endIndex-beginIndex)*3];
-	uint8_t *color_data = new uint8_t[(endIndex-beginIndex)*3];
+	Ogre::RGBA *color_data = new Ogre::RGBA[(endIndex-beginIndex)*3];
 	uint16_t *index_data = new uint16_t[endIndex-beginIndex];
 
 	//std::cout << "Adding mesh data" << std::endl;
+	Ogre::RGBA *cPtr = color_data;
 	for(int index = beginIndex; index < endIndex; ++index) {
 		const PolyVox::PositionMaterial& vertex = vecVertices[vecIndices[index]];
 
@@ -244,9 +264,13 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 		uint8_t green = ((int)abs(vertex.getPosition().getZ())*3) % 256;
 		uint8_t blue = ((int)abs(vertex.getPosition().getX())*5) % 256;
 
-		color_data[(index-beginIndex)*3 + 0] = red;
-		color_data[(index-beginIndex)*3 + 1] = green;
-		color_data[(index-beginIndex)*3 + 2] = blue;
+		Ogre::RenderSystem *rs = Ogre::Root::getSingleton().getRenderSystem();
+
+		rs->convertColourValue( Ogre::ColourValue( red/255.0, green/255.0, blue/255.0 ), cPtr++);
+
+		//color_data[(index-beginIndex)*3 + 0] = red;
+		//color_data[(index-beginIndex)*3 + 1] = green;
+		//color_data[(index-beginIndex)*3 + 2] = blue;
 
 		//mesh->colour(red, green, blue);
 
