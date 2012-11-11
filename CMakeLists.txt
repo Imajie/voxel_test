@@ -136,6 +136,7 @@ set(HDRS
 	include/terrainGenerator.h
 	include/terrainPager.h
 	include/perlinNoise.h
+	include/cameraMan.h
 )
  
 set(SRCS
@@ -144,6 +145,7 @@ set(SRCS
 	src/terrainGenerator.cpp
 	src/terrainPager.cpp
 	src/perlinNoise.cpp
+	src/cameraMan.cpp
 )
  
 include_directories( ${OIS_INCLUDE_DIRS}

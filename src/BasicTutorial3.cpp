@@ -27,7 +27,7 @@ This source file is part of the
 #include "PolyVoxCore/Raycast.h"
 
 #define VOXEL_SCALE 1.0
-#define MODIFY_RADIUS 5.0
+#define MODIFY_RADIUS 0.5
 
 using namespace std;
 
@@ -79,7 +79,6 @@ void createSphereInVolume(TerrainPager* volData, float fRadius, PolyVox::Vector3
 void BasicTutorial3::createCursor( float radius )
 {
 	radius *= VOXEL_SCALE;
-	radius -= 1.0;
 
 	// Assuming scene_mgr is your SceneManager.
 	Ogre::ManualObject * circle = mSceneMgr->createManualObject("debugCursor");
@@ -132,14 +131,7 @@ void BasicTutorial3::createScene(void)
 	mCamera->setPosition(Ogre::Vector3(0, 33, 0));
 	mCamera->lookAt(Ogre::Vector3(100, 33, 0));
 	mCamera->setNearClipDistance(0.1);
-	mCamera->setFarClipDistance(50000);
-
-	dragLook = true;
-
-	if (mRoot->getRenderSystem()->getCapabilities()->hasCapability(Ogre::RSC_INFINITE_FAR_PLANE))
-	{
-		mCamera->setFarClipDistance(0);   // enable infinite far clip distance if we can
-	}
+	mCamera->setFarClipDistance(5000);
 
 	// Play with startup Texture Filtering options
 	// Note: Pressing T on runtime will discarde those settings
@@ -161,6 +153,7 @@ void BasicTutorial3::createScene(void)
 	Ogre::SceneNode* ogreNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("testnode1", Ogre::Vector3(0, 0, 0));
 
 	terrain = new TerrainPager( mSceneMgr, ogreNode );
+	mCameraMan->setTerrain(terrain);
 
 	doTerrainUpdate();
 
@@ -282,12 +275,6 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 {
 	if (mTrayMgr->injectMouseDown(evt, id)) return true;
 
-	if( dragLook && id == OIS::MB_Left )
-	{
-		mCameraMan->setStyle(OgreBites::CS_FREELOOK);
-		mTrayMgr->hideCursor();
-	}
-
 	mCameraMan->injectMouseDown(evt, id);
 	return true;
 }
@@ -295,12 +282,6 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 bool BasicTutorial3::mouseReleased( const OIS::MouseEvent& evt, OIS::MouseButtonID id )
 {
 	if (mTrayMgr->injectMouseUp(evt, id)) return true;
-
-	if( dragLook && id == OIS::MB_Left )
-	{
-		mCameraMan->setStyle(OgreBites::CS_MANUAL);
-		mTrayMgr->showCursor();
-	}
 
 	mCameraMan->injectMouseUp(evt, id);
 	return true;
