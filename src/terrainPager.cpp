@@ -284,11 +284,6 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 
 		uint8_t mat = vertex.getMaterial() - 1;
 		
-		if( rand() < RAND_MAX/100 ) 
-		{
-			mat += 1;
-		}
-
 		manObj->colour(mat, mat, mat);
 	}
 }
@@ -332,7 +327,19 @@ void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Materia
 			{
 
 				PolyVox::Material8 voxel = vol.getVoxelAt(x, y, z);
-				voxel.setMaterial(1);
+
+				if( y < CHUNK_SIZE/3 )
+				{
+					voxel.setMaterial(1);
+				}
+				else if( y < 2*CHUNK_SIZE/3 )
+				{
+					voxel.setMaterial(2);
+				}
+				else if( y < 3*CHUNK_SIZE/3 )
+				{
+					voxel.setMaterial(3);
+				}
 				vol.setVoxelAt(x,y,z, voxel);
 			}
 		}
