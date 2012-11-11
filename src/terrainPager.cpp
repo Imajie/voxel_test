@@ -43,8 +43,8 @@ TerrainPager::TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node 
 	volume(&volume_load, &volume_unload, CHUNK_SIZE), manObj(sceneMgr->createManualObject("terrain")), lastPosition(0,0,0), 
 	extractQueue(Ogre::Root::getSingleton().getWorkQueue()), init(false)
 {
-	//volume.setCompressionEnabled(true);
-	//volume.setMaxNumberOfBlocksInMemory( 1024 );
+	volume.setCompressionEnabled(true);
+	volume.setMaxNumberOfBlocksInMemory( 1024 );
 
 	node->attachObject(manObj);
 
@@ -79,22 +79,22 @@ void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Mater
 	
 	if( vec.getX() % CHUNK_SIZE == 0 )
 	{
-		chunkDirty[ std::make_pair(coord.first-1, coord.second)] = true;
+		chunkDirty[ std::make_pair(coord.first-1, coord.second) ] = true;
 	}
 
 	if( vec.getX()+1 % CHUNK_SIZE == 0 )
 	{
-		chunkDirty[ std::make_pair(coord.first+1, coord.second)] = true;
+		chunkDirty[ std::make_pair(coord.first+1, coord.second) ] = true;
 	}
 
 	if( vec.getZ() % CHUNK_SIZE == 0 )
 	{
-		chunkDirty[ std::make_pair(coord.first, coord.second-1)] = true;
+		chunkDirty[ std::make_pair(coord.first, coord.second-1) ] = true;
 	}
 
 	if( vec.getZ()+1 % CHUNK_SIZE == 0 )
 	{
-		chunkDirty[ std::make_pair(coord.first, coord.second+1)] = true;
+		chunkDirty[ std::make_pair(coord.first, coord.second+1) ] = true;
 	}
 }
 
@@ -136,6 +136,9 @@ void TerrainPager::handleResponse (const Ogre::WorkQueue::Response *res, const O
 	if( req->new_mesh )
 	{
 		// add chunk to map
+		chunkToMesh[req->coord] = manObj->getNumSections();
+
+		// add chunk to map
 		manObj->begin("VoxelTexture", Ogre::RenderOperation::OT_TRIANGLE_LIST);
 	}
 	else
@@ -146,12 +149,6 @@ void TerrainPager::handleResponse (const Ogre::WorkQueue::Response *res, const O
 	genMesh( req->region, req->poly_mesh );
 
 	manObj->end();
-
-	if( req->new_mesh )
-	{
-		// add chunk to map
-		chunkToMesh[req->coord] = manObj->getNumSections();
-	}
 
 	chunkProcessing[req->coord] = false;
 	chunkDirty[req->coord] = false;
@@ -213,13 +210,12 @@ void TerrainPager::regenerateMesh( const Ogre::Vector3 &position )
 #else
 					if( chunkProcessing[ coord ] == false )
 					{
-						//std::cout << "Regenerate chunk: (" << coord.first << ", " << coord.second << ")" << std::endl;
 						chunkProcessing[ coord ] = true;
 						extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(req));
 					}
 #endif
+					chunkDirty[coord] = false;
 				}
-				chunkDirty[coord] = false;
 			}
 		}
 	}
@@ -247,14 +243,9 @@ void TerrainPager::extract( const PolyVox::Region &region, PolyVox::SurfaceMesh<
 {
 	boost::mutex::scoped_lock lock(req_mutex);
 
-	PolyVox::Region new_region;
-
-	new_region.setUpperCorner( region.getUpperCorner() - PolyVox::Vector3DInt32(1, 0, 1) );
-	new_region.setLowerCorner( region.getLowerCorner() );
-
 	volume.prefetch( region );
 
-	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume<PolyVox::Material8> > suf(&volume, new_region, &surf_mesh, false);
+	PolyVox::CubicSurfaceExtractor<PolyVox::LargeVolume<PolyVox::Material8> > suf(&volume, region, &surf_mesh, false);
 
 	suf.execute();
 }
@@ -296,15 +287,15 @@ const PolyVox::Region TerrainPager::toRegion( const chunkCoord &coord )
 	PolyVox::Region region;
 
 	region.setLowerCorner( PolyVox::Vector3DInt32( x, 0, z ) );
-	region.setUpperCorner( PolyVox::Vector3DInt32( x + CHUNK_SIZE, CHUNK_SIZE-1, z + CHUNK_SIZE ) );
+	region.setUpperCorner( PolyVox::Vector3DInt32( x + CHUNK_SIZE-1, CHUNK_SIZE-1, z + CHUNK_SIZE-1 ) );
 
 	return region;
 }
 
 TerrainPager::chunkCoord TerrainPager::toChunkCoord( const PolyVox::Vector3DInt32 &vec )
 {
-	int x = vec.getX() / CHUNK_SIZE;
-	int z = vec.getZ() / CHUNK_SIZE;
+	int x = floor(((double)vec.getX()) / CHUNK_SIZE);
+	int z = floor(((double)vec.getZ()) / CHUNK_SIZE);
 
 	return std::make_pair(x,z);
 }
