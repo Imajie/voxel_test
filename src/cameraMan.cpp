@@ -22,6 +22,7 @@ CameraMan::CameraMan(Ogre::Camera* cam) :
 	fallSpeedMax = 10.0;
 	gravityAccel = 10.0;
 	jumpSpeed = 5.0;
+	charHeight = 2.0;
 }
 
 CameraMan::~CameraMan() {}
@@ -127,33 +128,40 @@ bool CameraMan::frameRenderingQueued(const Ogre::FrameEvent& evt)
 	mVelocity.y = y_tmp;
 
 	// terrain handling, raycast each unit direction
-	PolyVox::RaycastResult resultX;
+	PolyVox::RaycastResult resultXH;
+	PolyVox::RaycastResult resultXL;
 	PolyVox::RaycastResult resultY;
-	PolyVox::RaycastResult resultZ;
-
-	PolyVox::Vector3DFloat cameraPos( mCamera->getPosition().x, mCamera->getPosition().y, mCamera->getPosition().z );
+	PolyVox::RaycastResult resultZH;
+	PolyVox::RaycastResult resultZL;
 
 	double width = 0.5;
+	PolyVox::Vector3DFloat cameraPos( mCamera->getPosition().x, mCamera->getPosition().y,						mCamera->getPosition().z );
+	PolyVox::Vector3DFloat cameraPosH( mCamera->getPosition().x, mCamera->getPosition().y + width,				mCamera->getPosition().z );
+	PolyVox::Vector3DFloat cameraPosL( mCamera->getPosition().x, mCamera->getPosition().y - charHeight + width,	mCamera->getPosition().z );
+
 	if( mVelocity.x > 0 )
 	{
-		mTerrain->raycast( cameraPos, PolyVox::Vector3DFloat( width, 0, 0), resultX);
+		mTerrain->raycast( cameraPosH, PolyVox::Vector3DFloat( width, 0, 0), resultXH);
+		mTerrain->raycast( cameraPosL, PolyVox::Vector3DFloat( width, 0, 0), resultXL);
 	}
 	else if( mVelocity.x < 0 )
 	{
-		mTerrain->raycast( cameraPos, PolyVox::Vector3DFloat(-width, 0, 0), resultX);
+		mTerrain->raycast( cameraPosH, PolyVox::Vector3DFloat(-width, 0, 0), resultXH);
+		mTerrain->raycast( cameraPosL, PolyVox::Vector3DFloat(-width, 0, 0), resultXL);
 	}
 	else
 	{
-		resultX.foundIntersection = false;
+		resultXH.foundIntersection = false;
+		resultXL.foundIntersection = false;
 	}
 
 	if( mVelocity.y > 0 )
 	{
-		mTerrain->raycast( cameraPos, PolyVox::Vector3DFloat( 0, 2*width, 0), resultY);
+		mTerrain->raycast( cameraPosH, PolyVox::Vector3DFloat( 0, width, 0), resultY);
 	}
 	else if( mVelocity.y < 0 )
 	{
-		mTerrain->raycast( cameraPos, PolyVox::Vector3DFloat( 0,-2*width, 0), resultY);
+		mTerrain->raycast( cameraPosL, PolyVox::Vector3DFloat( 0,-width, 0), resultY);
 	}
 	else
 	{
@@ -162,30 +170,58 @@ bool CameraMan::frameRenderingQueued(const Ogre::FrameEvent& evt)
 
 	if( mVelocity.z > 0 )
 	{
-		mTerrain->raycast( cameraPos, PolyVox::Vector3DFloat( 0, 0, width), resultZ);
+		mTerrain->raycast( cameraPosH, PolyVox::Vector3DFloat( 0, 0, width), resultZH);
+		mTerrain->raycast( cameraPosL, PolyVox::Vector3DFloat( 0, 0, width), resultZL);
 	}
 	else if( mVelocity.z < 0 )
 	{
-		mTerrain->raycast( cameraPos, PolyVox::Vector3DFloat( 0, 0,-width), resultZ);
+		mTerrain->raycast( cameraPosH, PolyVox::Vector3DFloat( 0, 0,-width), resultZH);
+		mTerrain->raycast( cameraPosL, PolyVox::Vector3DFloat( 0, 0,-width), resultZL);
 	}
 	else
 	{
-		resultZ.foundIntersection = false;
+		resultZH.foundIntersection = false;
+		resultZL.foundIntersection = false;
 	}
 
+	Ogre::Vector3 camPos( mCamera->getPosition() );
 	// handle horizontal movement
-	if( resultX.foundIntersection )
+	if( resultXH.foundIntersection || resultXL.foundIntersection )
 	{
 		mVelocity.x = 0;
+		
+		if( resultXH.foundIntersection )
+		{
+			camPos.x = resultXH.previousVoxel.getX();
+		}
+		else
+		{
+			camPos.x = resultXL.previousVoxel.getX();
+		}
 	}
-	if( resultZ.foundIntersection )
+	if( resultZH.foundIntersection || resultZL.foundIntersection )
 	{
 		mVelocity.z = 0;
+
+		if( resultZH.foundIntersection )
+		{
+			camPos.z = resultZH.previousVoxel.getZ();
+		}
+		else
+		{
+			camPos.z = resultZL.previousVoxel.getZ();
+		}
 	}
 
 	// handle ground/ceiling
 	if( resultY.foundIntersection )
 	{
+		camPos.y = resultY.previousVoxel.getY();
+		if( mVelocity.y < 0 )
+		{
+			camPos.y += charHeight - 1.0;
+		}
+
 		mVelocity.y = 0;
 	}
 	else
@@ -195,6 +231,9 @@ bool CameraMan::frameRenderingQueued(const Ogre::FrameEvent& evt)
 			mVelocity.y = -fallSpeedMax;
 		}
 	}
+
+	// set new position, not in a voxel
+	mCamera->setPosition( camPos );
 
 	if (mVelocity != Ogre::Vector3::ZERO) mCamera->move(mVelocity * evt.timeSinceLastFrame);
 

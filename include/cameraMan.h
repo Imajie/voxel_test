@@ -111,6 +111,7 @@ class CameraMan
 		bool mJump;
 		bool mFastMove;
 
+		double charHeight;
 		double fallSpeedMax;
 		double jumpSpeed;
 		double gravityAccel;
