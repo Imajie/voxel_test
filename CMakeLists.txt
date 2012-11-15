@@ -103,29 +103,19 @@ if (NOT OGRE_BUILD_PLATFORM_IPHONE)
 	)
 endif()
 
-# Find Bullet
-#if (NOT OGRE_BUILD_PLATFORM_IPHONE)
-#find_package(Bullet REQUIRED)
-#
-#include_directories(${Bullet_INCLUDE_DIR})
-#include_directories(/usr/include/OgreBullet/Collisions)
-#include_directories(/usr/include/OgreBullet/Dynamics)
-#
-#set(OGRE_LIBRARIES
-#${OGRE_LIBRARIES}
-#${Bullet_LIBRARIES}
-#-lOgreBulletCol
-#-lOgreBulletDyn
-#)
-#endif()
-
 # Polyvox
 find_package(PolyVox REQUIRED)
-
 include_directories(${PolyVox_INCLUDE_DIRS})
+
+# Enet
+
+pkg_check_modules(ENET REQUIRED libenet)
+include_directories(${ENET_INCLUDE_DIRS})
+
 set(OGRE_LIBRARIES
 	${OGRE_LIBRARIES}
 	${PolyVox_LIBRARIES}
+	${ENET_LIBRARIES}
 )
 
  
@@ -148,11 +138,18 @@ set(SRCS
 	src/cameraMan.cpp
 )
  
-include_directories( ${OIS_INCLUDE_DIRS}
+include_directories(
+	${OIS_INCLUDE_DIRS}
 	${OGRE_INCLUDE_DIRS}
 	${OGRE_SAMPLES_INCLUDEPATH}
 )
  
+# TODO
+add_executable(server src/serverTest.cpp)
+add_executable(client src/clientTest.cpp)
+target_link_libraries(server ${ENET_LIBRARIES})
+target_link_libraries(client ${ENET_LIBRARIES})
+
 add_executable(game WIN32 ${HDRS} ${SRCS})
  
 set_target_properties(game PROPERTIES DEBUG_POSTFIX _d)
