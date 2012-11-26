@@ -1,26 +1,14 @@
 /*
------------------------------------------------------------------------------
-Filename:    BasicTutorial3.cpp
------------------------------------------------------------------------------
- 
-This source file is part of the
-   ___                 __    __ _ _    _ 
-  /___\__ _ _ __ ___  / / /\ \ (_) | _(_)
- //  // _` | '__/ _ \ \ \/  \/ / | |/ / |
-/ \_// (_| | | |  __/  \  /\  /| |   <| |
-\___/ \__, |_|  \___|   \/  \/ |_|_|\_\_|
-      |___/                              
-      Tutorial Framework
-      http://www.ogre3d.org/tikiwiki/
------------------------------------------------------------------------------
-*/
+ * File:	OgreApp.cpp
+ *
+ */
  
 #include <vector>
 #include <cassert>
 
 #include "perlinNoise.h"
 
-#include "BasicTutorial3.h"
+#include "OgreApp.h"
 #include "PolyVoxCore/SimpleInterface.h"
 #include "PolyVoxCore/CubicSurfaceExtractor.h"
 #include "PolyVoxCore/SurfaceMesh.h"
@@ -31,7 +19,7 @@ This source file is part of the
 
 using namespace std;
 
-void BasicTutorial3::doTerrainUpdate()
+void OgreApp::doTerrainUpdate()
 {
 	terrain->regenerateMesh( mCamera->getPosition() );
 }
@@ -76,7 +64,7 @@ void createSphereInVolume(TerrainPager* volData, float fRadius, PolyVox::Vector3
 	}
 }
 
-void BasicTutorial3::createCursor( float radius )
+void OgreApp::createCursor( float radius )
 {
 	radius *= VOXEL_SCALE;
 
@@ -109,20 +97,20 @@ void BasicTutorial3::createCursor( float radius )
 
 
 //-------------------------------------------------------------------------------------
-BasicTutorial3::BasicTutorial3(void)
+OgreApp::OgreApp(void)
 	: terrain(NULL)
 {
 }
 //-------------------------------------------------------------------------------------
-BasicTutorial3::~BasicTutorial3(void)
+OgreApp::~OgreApp(void)
 {
 }
 //-------------------------------------------------------------------------------------
-void BasicTutorial3::destroyScene(void)
+void OgreApp::destroyScene(void)
 {
 }
 //-------------------------------------------------------------------------------------
-void BasicTutorial3::createScene(void)
+void OgreApp::createScene(void)
 {
 	createCursor(MODIFY_RADIUS);
 
@@ -164,7 +152,7 @@ void BasicTutorial3::createScene(void)
 	mSceneMgr->setSkyPlane(true, plane, "Examples/CloudySky", 500, 20, true, 0.5, 150, 150);
 }
 //-------------------------------------------------------------------------------------
-void BasicTutorial3::createFrameListener(void)
+void OgreApp::createFrameListener(void)
 {
 	BaseApplication::createFrameListener();
 
@@ -173,19 +161,19 @@ void BasicTutorial3::createFrameListener(void)
 	mKeyboard->setEventCallback(this);
 }
 //-------------------------------------------------------------------------------------
-bool BasicTutorial3::frameStarted(const Ogre::FrameEvent &evt)
+bool OgreApp::frameStarted(const Ogre::FrameEvent &evt)
 {
 	//terrain->lock();
 	return true;
 }
 //-------------------------------------------------------------------------------------
-bool BasicTutorial3::frameEnded(const Ogre::FrameEvent &evt)
+bool OgreApp::frameEnded(const Ogre::FrameEvent &evt)
 {
 	//terrain->unlock();
 	return true;
 }
 //-------------------------------------------------------------------------------------
-bool BasicTutorial3::frameRenderingQueued(const Ogre::FrameEvent& evt)
+bool OgreApp::frameRenderingQueued(const Ogre::FrameEvent& evt)
 {
 	bool ret = BaseApplication::frameRenderingQueued(evt);
 
@@ -222,7 +210,7 @@ bool BasicTutorial3::frameRenderingQueued(const Ogre::FrameEvent& evt)
 }
 
 // OIS::KeyListener
-bool BasicTutorial3::keyPressed( const OIS::KeyEvent& evt )
+bool OgreApp::keyPressed( const OIS::KeyEvent& evt )
 {
 	bool ret = BaseApplication::keyPressed( evt );
 
@@ -256,14 +244,14 @@ bool BasicTutorial3::keyPressed( const OIS::KeyEvent& evt )
 	return ret;
 }
 
-bool BasicTutorial3::keyReleased( const OIS::KeyEvent& evt )
+bool OgreApp::keyReleased( const OIS::KeyEvent& evt )
 {
 	mCameraMan->injectKeyUp(evt);
 	return true;
 }
 
 // OIS::MouseListener
-bool BasicTutorial3::mouseMoved( const OIS::MouseEvent& evt )
+bool OgreApp::mouseMoved( const OIS::MouseEvent& evt )
 {
 	if (mTrayMgr->injectMouseMove(evt)) return true;
 
@@ -271,7 +259,7 @@ bool BasicTutorial3::mouseMoved( const OIS::MouseEvent& evt )
 	return true;
 }
 
-bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonID id )
+bool OgreApp::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonID id )
 {
 	if (mTrayMgr->injectMouseDown(evt, id)) return true;
 
@@ -279,7 +267,7 @@ bool BasicTutorial3::mousePressed( const OIS::MouseEvent& evt, OIS::MouseButtonI
 	return true;
 }
 
-bool BasicTutorial3::mouseReleased( const OIS::MouseEvent& evt, OIS::MouseButtonID id )
+bool OgreApp::mouseReleased( const OIS::MouseEvent& evt, OIS::MouseButtonID id )
 {
 	if (mTrayMgr->injectMouseUp(evt, id)) return true;
 
@@ -306,7 +294,7 @@ extern "C" {
 			// Create application object
 			initPerlinNoise();
 
-			BasicTutorial3 app;
+			OgreApp app;
 
 			try {
 				app.go();

@@ -122,7 +122,7 @@ set(OGRE_LIBRARIES
 include_directories(include)
 set(HDRS
 	include/BaseApplication.h
-	include/BasicTutorial3.h
+	include/OgreApp.h
 	include/terrainGenerator.h
 	include/terrainPager.h
 	include/perlinNoise.h
@@ -131,7 +131,7 @@ set(HDRS
  
 set(SRCS
 	src/BaseApplication.cpp
-	src/BasicTutorial3.cpp
+	src/OgreApp.cpp
 	src/terrainGenerator.cpp
 	src/terrainPager.cpp
 	src/perlinNoise.cpp

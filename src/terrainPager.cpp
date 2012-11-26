@@ -279,6 +279,71 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 	}
 }
 
+// TODO: for now just send 1 byte per voxel
+
+// serialize for a chunk
+ENetPacket* TerrainPager::serialize( chunkCoord coord )
+{
+	boost::mutex::scoped_lock lock(req_mutex);
+
+	// allocate enough buffer to hold each voxel plus the lower/upper corner position
+	int buffer_size = CHUNK_SIZE*CHUNK_SIZE*CHUNK_SIZE + 2*sizeof(int32_t);
+
+	char *buffer = new char[buffer_size];
+
+	// set chunk coordinates
+	((int32_t*)buffer)[0] = coord.first;
+	((int32_t*)buffer)[1] = coord.second;
+
+	int buffer_offset = 2*sizeof(int32_t);
+
+	for( int x = region.getLowerCorner.getX(); x < region.getUpperCorner.getX(); x++ )
+	{
+		for( int y = region.getLowerCorner.getY(); y < region.getUpperCorner.getY(); y++ )
+		{
+			for( int z = region.getLowerCorner.getZ(); z < region.getUpperCorner.getZ(); z++ )
+			{
+				buffer[buffer_offset++] = getVoxelAt(x, y, z).getMaterial();
+			}
+		}
+	}
+
+	ENetPacket *packet = enet_packet_create( buffer, buffer_size, ENET_PACKET_RELIABLE );
+
+	delete [] buffer;
+	return packet;
+}
+
+// extract data from the packet
+int TerrainPager::unserialize( ENetPacket *packet )
+{
+	boost::mutex::scoped_lock lock(req_mutex);
+
+	// undo the above
+	// first extract the coord
+	int32_t *coord_data = packet->data;
+	
+	chunkCoord coord = make_pair( coord_data[0], coord_data[1] );
+	PolyVox::Region region( toRegion( coord ) );
+
+	uint8_t buffer = packet->data;
+	int buffer_offset = 2*sizeof(int32_t);
+
+	// now extract the voxels
+	for( int x = region.getLowerCorner.getX(); x < region.getUpperCorner.getX(); x++ )
+	{
+		for( int y = region.getLowerCorner.getY(); y < region.getUpperCorner.getY(); y++ )
+		{
+			for( int z = region.getLowerCorner.getZ(); z < region.getUpperCorner.getZ(); z++ )
+			{
+				volume.setVoxelAt( x, y, z, PolyVox::Material8(buffer[buffer_offset++]) );
+			}
+		}
+	}
+	// the chunk has changed
+	chunkDirty[coord] = true;
+}
+
 const PolyVox::Region TerrainPager::toRegion( const chunkCoord &coord )
 {
 	int x = coord.first  * CHUNK_SIZE;

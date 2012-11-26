@@ -18,6 +18,8 @@
 #include <OgreManualObject.h>
 #include <OgreWorkQueue.h>
 
+#include <enet/enet.h>
+
 class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQueue::ResponseHandler
 {
 	public:
@@ -34,6 +36,10 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		static void volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 		static void volume_unload( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 
+		// serialization
+		ENetPacket* TerrainPager::serialize( chunkCoord coord );
+		int TerrainPager::unserialize( ENetPacket *packet );
+
 		// volume interface
 		PolyVox::Region getEnclosingRegion() { return volume.getEnclosingRegion(); }
 		PolyVox::Material8 getVoxelAt( const PolyVox::Vector3DInt32 &vec );
@@ -42,6 +48,7 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		// lock
 		void lock() { mutex.lock(); }
 		void unlock() { mutex.unlock(); }
+
 	private:
 		// Request handler interface
 		virtual bool canHandleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ);

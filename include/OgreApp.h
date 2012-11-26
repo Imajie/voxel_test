@@ -1,21 +1,8 @@
 /*
------------------------------------------------------------------------------
-Filename:    BasicTutorial3.h
------------------------------------------------------------------------------
- 
-This source file is part of the
-   ___                 __    __ _ _    _ 
-  /___\__ _ _ __ ___  / / /\ \ (_) | _(_)
- //  // _` | '__/ _ \ \ \/  \/ / | |/ / |
-/ \_// (_| | | |  __/  \  /\  /| |   <| |
-\___/ \__, |_|  \___|   \/  \/ |_|_|\_\_|
-      |___/                              
-      Tutorial Framework
-      http://www.ogre3d.org/tikiwiki/
------------------------------------------------------------------------------
-*/
-#ifndef __BasicTutorial3_h_
-#define __BasicTutorial3_h_
+ * File:	OgreApp.h
+ */
+#ifndef __OgreApp_h_
+#define __OgreApp_h_
  
 #include "BaseApplication.h"
 
@@ -25,7 +12,7 @@ This source file is part of the
 #include <PolyVoxCore/LargeVolume.h>
 #include <PolyVoxCore/Material.h>
 
-class BasicTutorial3 : public BaseApplication
+class OgreApp : public BaseApplication
 {
 private:
 	TerrainPager *terrain;
@@ -35,8 +22,8 @@ private:
 	void createCursor( float radius );
 
 public:
-    BasicTutorial3(void);
-    virtual ~BasicTutorial3(void);
+    OgreApp(void);
+    virtual ~OgreApp(void);
  
 protected:
     virtual void createScene(void);
@@ -56,4 +43,4 @@ protected:
     virtual bool mouseReleased( const OIS::MouseEvent& evt, OIS::MouseButtonID id );
 };
  
-#endif // #ifndef __BasicTutorial3_h_
+#endif // #ifndef __OgreApp_h_
