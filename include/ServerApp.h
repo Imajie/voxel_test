@@ -8,9 +8,13 @@
 #include "BaseApplication.h"
 #include "terrainPager.h"
 
+#include "PlayerEntity.h"
+
 #include <PolyVoxCore/SimpleInterface.h>
 #include <PolyVoxCore/LargeVolume.h>
 #include <PolyVoxCore/Material.h>
+
+#include <vector>
 
 class ServerApp : public BaseApplication
 {
@@ -28,7 +32,7 @@ protected:
     virtual bool setupNetwork();
 
 	ENetHost *server;
-	std::vector<ENetPeer*> clients;
+	std::vector<PlayerEntity> players;
 };
  
 #endif // #ifndef __ServerApp_h_

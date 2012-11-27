@@ -125,6 +125,10 @@ set(COMMON_HDRS
 	include/terrainGenerator.h
 	include/terrainPager.h
 	include/perlinNoise.h
+	include/NetworkPackets.h
+	include/PlayerEntity.h
+	include/Serializable.h
+	include/GameObject.h
 	)
 
 set(COMMON_SRCS
@@ -132,6 +136,8 @@ set(COMMON_SRCS
 	src/terrainGenerator.cpp
 	src/terrainPager.cpp
 	src/perlinNoise.cpp
+	src/NetworkPackets.cpp
+	src/PlayerEntity.cpp
 	)
 
 set(CLIENT_HDRS

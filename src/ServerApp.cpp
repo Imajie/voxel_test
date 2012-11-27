@@ -79,9 +79,9 @@ void ServerApp::go(void)
 
 		// handle network
 		ENetEvent event;
-		//ENetPacket *packet;
+		std::string playerName;
 
-		if( enet_host_service( server, &event, 0 ) >= 0 )
+		if( enet_host_service( server, &event, 0 ) > 0 )
 		{
 			switch( event.type )
 			{
@@ -99,6 +99,19 @@ void ServerApp::go(void)
 						event.peer->data = strdup( (char*)event.packet->data );
 
 						cout << "Client " << event.peer->address.host << " known as " << (char*)event.peer->data << endl;
+
+						playerName = (char*)event.peer->data;
+						players.push_back( PlayerEntity( playerName ) );
+
+						// broadcast to all clients
+						Packet joinPacket;
+						joinPacket.type = PLAYER_CONNECT_PACKET;
+						for( char c : playerName )
+						{
+							joinPacket.data.push_back(c);
+						}
+
+						joinPacket.broadcast(server, ENET_PACKET_FLAG_RELIABLE);
 					}
 					else
 					{
@@ -110,6 +123,26 @@ void ServerApp::go(void)
 				case ENET_EVENT_TYPE_DISCONNECT:
 					// client disconnect
 					cout << "Client "  << (char*)event.peer->data << " disconnect" << endl;
+
+					// delete the player
+					playerName = (char*)event.peer->data;
+					for( size_t i = 0; i < players.size(); i++ )
+					{
+						if( playerName == players[i].getName() )
+						{
+							Packet dropPacket;
+							dropPacket.type = PLAYER_DISCONNECT_PACKET;
+							for( char c : playerName )
+							{
+								dropPacket.data.push_back(c);
+							}
+							
+							dropPacket.broadcast(server, ENET_PACKET_FLAG_RELIABLE);
+
+							players.erase( players.begin() + i );
+							break;
+						}
+					}
 
 					free(event.peer->data);
 					event.peer->data = NULL;
