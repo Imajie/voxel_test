@@ -35,6 +35,7 @@ ServerApp::ServerApp(void) : terrain(NULL)
 //-------------------------------------------------------------------------------------
 ServerApp::~ServerApp(void)
 {
+	if(terrain) delete terrain;
 }
 //-------------------------------------------------------------------------------------
 bool ServerApp::setupNetwork(void)
@@ -72,6 +73,8 @@ void ServerApp::go(void)
 	if (!setup())
 		return;
 
+	terrain = new TerrainPager(NULL, NULL, this);
+	
 	while( !quit )
 	{
 		//Pump messages in all registered RenderWindow windows
@@ -116,7 +119,33 @@ void ServerApp::go(void)
 					else
 					{
 						// new data from a existing client
-						//packet = event.packet;
+						Packet recvPacket;
+						Packet *pkt;
+						recvPacket.unserialize( event.packet->data, event.packet->dataLength );
+
+						switch( recvPacket.type )
+						{
+							case PLAYER_CONNECT_PACKET:
+								break;
+							case PLAYER_DISCONNECT_PACKET:
+								break;
+							case PLAYER_MOVE_PACKET:
+								break;
+
+							case TERRAIN_REQUEST_PACKET:
+								pkt = terrain->request( &recvPacket );
+								pkt->send( event.peer, ENET_PACKET_FLAG_RELIABLE );
+								delete pkt;
+								break;
+							case TERRAIN_RESPONSE_PACKET:
+								// not used in server
+								break;
+							case TERRAIN_UPDATE_PACKET:
+								break;
+
+							default:
+								break;
+						}
 					}
 					break;
 

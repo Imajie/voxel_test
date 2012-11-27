@@ -9,6 +9,8 @@
 
 #include <map>
 
+#include "BaseApplication.h"
+
 #include <PolyVoxCore/LargeVolume.h>
 #include <PolyVoxCore/SimpleInterface.h>
 #include <PolyVoxCore/Material.h>
@@ -18,16 +20,17 @@
 #include <OgreManualObject.h>
 #include <OgreWorkQueue.h>
 
-#include <enet/enet.h>
+#include "NetworkPackets.h"
 
 class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQueue::ResponseHandler
 {
 	public:
 		typedef std::pair<int,int> chunkCoord;
 		
-		TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node );
+		TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node, BaseApplication *app );
 
 		// regenerate the mesh for our new position, if needed
+		void regenerateChunk( chunkCoord coord );
 		void regenerateMesh( const Ogre::Vector3 &position );
 
 		// raycast into the volume
@@ -37,8 +40,9 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		static void volume_unload( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 
 		// serialization
-		ENetPacket* serialize( chunkCoord coord );
-		int unserialize( ENetPacket *packet );
+		Packet* serialize( chunkCoord coord );
+		int unserialize( Packet *packet );
+		Packet* request( Packet *packet );
 
 		// volume interface
 		PolyVox::Region getEnclosingRegion() { return volume.getEnclosingRegion(); }
@@ -49,7 +53,14 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		void lock() { mutex.lock(); }
 		void unlock() { mutex.unlock(); }
 
+		// convert the region into the chunk coordinates
+		static chunkCoord toChunkCoord( const PolyVox::Vector3DInt32 &vec );
+
+		// convert chunk coordinates into region
+		static const PolyVox::Region toRegion( const chunkCoord &coord );
 	private:
+		BaseApplication *app;
+
 		// Request handler interface
 		virtual bool canHandleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ);
 		virtual Ogre::WorkQueue::Response* handleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ);
@@ -61,12 +72,6 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		// extract the region into new/updated mesh
 		void extract( const PolyVox::Region &region, PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh );
 		void genMesh( const PolyVox::Region &region, const PolyVox::SurfaceMesh<PolyVox::PositionMaterial> &surf_mesh );
-
-		// convert the region into the chunk coordinates
-		chunkCoord toChunkCoord( const PolyVox::Vector3DInt32 &vec );
-
-		// convert chunk coordinates into region
-		const PolyVox::Region toRegion( const chunkCoord &coord );
 
 		// the volume to page
 		PolyVox::LargeVolume<PolyVox::Material8> volume;

@@ -28,6 +28,9 @@ void kill_sig( int code )
 	quit = true;
 }
 
+// instance
+ClientApp *ClientApp::self = NULL;
+
 void ClientApp::doTerrainUpdate()
 {
 	terrain->regenerateMesh( mCamera->getPosition() );
@@ -357,9 +360,57 @@ void ClientApp::go(void)
 			break;
 	
 		// handle network
+		ENetEvent event;
+		std::string playerName;
+		Packet recvPacket;
+
+		if( enet_host_service( client, &event, 0 ) > 0 )
+		{
+			switch( event.type )
+			{
+				case ENET_EVENT_TYPE_CONNECT:
+					// not used
+					break;
+
+				case ENET_EVENT_TYPE_RECEIVE:
+					// new data from server
+					recvPacket.unserialize( event.packet->data, event.packet->dataLength );
+
+					switch( recvPacket.type )
+					{
+						case PLAYER_CONNECT_PACKET:
+							break;
+						case PLAYER_DISCONNECT_PACKET:
+							break;
+						case PLAYER_MOVE_PACKET:
+							break;
+
+						case TERRAIN_REQUEST_PACKET:
+							// not used in client
+							break;
+						case TERRAIN_RESPONSE_PACKET:
+							terrain->unserialize( &recvPacket );
+							break;
+						case TERRAIN_UPDATE_PACKET:
+							break;
+
+						default:
+							break;
+					}
+					break;
+
+				case ENET_EVENT_TYPE_DISCONNECT:
+					// server disconnect
+					cout << "Server disconnect" << endl;
+					quit = true;
+					break;
+				case ENET_EVENT_TYPE_NONE:
+					// nothing happened
+					break;
+			}
+		}
 		
 	}
-	//mRoot->startRendering();
 
 	// clean up
 	destroyScene();
@@ -447,7 +498,7 @@ void ClientApp::createScene(void)
 	// PolyVox stuff
 	Ogre::SceneNode* ogreNode = mSceneMgr->getRootSceneNode()->createChildSceneNode("testnode1", Ogre::Vector3(0, 0, 0));
 
-	terrain = new TerrainPager( mSceneMgr, ogreNode );
+	terrain = new TerrainPager( mSceneMgr, ogreNode, this );
 	mCameraMan->setTerrain(terrain);
 
 	doTerrainUpdate();
@@ -733,13 +784,10 @@ extern "C" {
 			signal( SIGTERM, kill_sig );
 			signal( SIGINT,  kill_sig );
 
-			// Create application object
-			initPerlinNoise();
-
-			ClientApp app;
+			ClientApp *app = ClientApp::getInstance();
 
 			try {
-				app.go();
+				app->go();
 			} catch( Ogre::Exception& e ) {
 #if OGRE_PLATFORM == OGRE_PLATFORM_WIN32
 				MessageBox( NULL, e.getFullDescription().c_str(), "An exception has occured!", MB_OK | MB_ICONERROR | MB_TASKMODAL);

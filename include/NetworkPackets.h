@@ -32,7 +32,7 @@ class Packet {
 		std::vector<char> data;
 
 		const char* serialize();
-		void unserialize( const char* data );
+		void unserialize( const unsigned char* data, size_t size );
 
 		// send the packet
 		void send( ENetPeer *client, uint32_t flags );

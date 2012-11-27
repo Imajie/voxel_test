@@ -122,22 +122,18 @@ set(OGRE_LIBRARIES
 include_directories(include)
 set(COMMON_HDRS
 	include/BaseApplication.h
-	include/terrainGenerator.h
-	include/terrainPager.h
-	include/perlinNoise.h
 	include/NetworkPackets.h
 	include/PlayerEntity.h
 	include/Serializable.h
 	include/GameObject.h
+	include/terrainPager.h
 	)
 
 set(COMMON_SRCS
 	src/BaseApplication.cpp
-	src/terrainGenerator.cpp
-	src/terrainPager.cpp
-	src/perlinNoise.cpp
 	src/NetworkPackets.cpp
 	src/PlayerEntity.cpp
+	src/terrainPager.cpp
 	)
 
 set(CLIENT_HDRS
@@ -151,9 +147,11 @@ set(CLIENT_SRCS
 
 set(SERVER_HDRS
 	include/ServerApp.h
+	include/perlinNoise.h
 	)
 set(SERVER_SRCS
 	src/ServerApp.cpp
+	src/perlinNoise.cpp
 	)
 
 include_directories(
@@ -170,6 +168,9 @@ target_link_libraries(client ${ENET_LIBRARIES})
 
 set_target_properties(server PROPERTIES DEBUG_POSTFIX _d)
 set_target_properties(client PROPERTIES DEBUG_POSTFIX _d)
+
+set_target_properties(server PROPERTIES COMPILE_FLAGS -DSERVER_SIDE)
+set_target_properties(client PROPERTIES COMPILE_FLAGS -DCLIENT_SIDE)
 
 target_link_libraries(server ${OGRE_LIBRARIES} ${OIS_LIBRARIES})
 target_link_libraries(client ${OGRE_LIBRARIES} ${OIS_LIBRARIES})

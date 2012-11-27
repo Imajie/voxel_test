@@ -23,16 +23,16 @@ const char* Packet::serialize()
 	return buffer;
 }
 
-void Packet::unserialize( const char* packet )
+void Packet::unserialize( const unsigned char* packet, size_t size )
 {
 	data.clear();
 
 	type = ((PacketType*)packet)[0];
 
-	size_t size = ((size_t*)(packet+sizeof(PacketType)))[0];
+	size_t pkt_size = ((size_t*)(packet+sizeof(PacketType)))[0];
 
-	const char* ptr = packet + sizeof(PacketType) + sizeof(size_t);
-	for( size_t i = 0; i < size; i++ )
+	const unsigned char* ptr = packet + sizeof(PacketType) + sizeof(size_t);
+	for( size_t i = 0; i < std::min(size,pkt_size); i++ )
 	{
 		data.push_back(*ptr);
 		ptr++;

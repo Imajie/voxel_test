@@ -28,6 +28,8 @@
 class ClientApp : public Ogre::FrameListener, public Ogre::WindowEventListener, public OIS::KeyListener, public OIS::MouseListener, OgreBites::SdkTrayListener, public BaseApplication
 {
 private:
+	static ClientApp *self;
+
 	TerrainPager *terrain;
 	Ogre::SceneNode *mCursor;
 
@@ -35,12 +37,20 @@ private:
 	void createCursor( float radius );
 
 public:
-    ClientApp(void);
+	static ClientApp *getInstance()
+	{
+		if( !self ) self = new ClientApp();
+
+		return self;
+	}
     virtual ~ClientApp(void);
  
     virtual void go(void);
 
+	ENetPeer *getServer() const { return server; }
 protected:
+    ClientApp(void);
+
     virtual void createScene(void);
     virtual void createFrameListener(void);
     virtual void destroyScene(void);
@@ -73,8 +83,8 @@ protected:
     //Unattach OIS before window shutdown (very important under Linux)
     virtual void windowClosed(Ogre::RenderWindow* rw);
 
-	ENetPeer *server;
 	ENetHost *client;
+	ENetPeer *server;
 
     Ogre::Camera* mCamera;
     Ogre::SceneManager* mSceneMgr;
