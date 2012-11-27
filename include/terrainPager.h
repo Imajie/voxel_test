@@ -37,8 +37,8 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		static void volume_unload( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 
 		// serialization
-		ENetPacket* TerrainPager::serialize( chunkCoord coord );
-		int TerrainPager::unserialize( ENetPacket *packet );
+		ENetPacket* serialize( chunkCoord coord );
+		int unserialize( ENetPacket *packet );
 
 		// volume interface
 		PolyVox::Region getEnclosingRegion() { return volume.getEnclosingRegion(); }

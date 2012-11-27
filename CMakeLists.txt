@@ -120,131 +120,148 @@ set(OGRE_LIBRARIES
 
  
 include_directories(include)
-set(HDRS
+set(COMMON_HDRS
 	include/BaseApplication.h
-	include/OgreApp.h
 	include/terrainGenerator.h
 	include/terrainPager.h
 	include/perlinNoise.h
-	include/cameraMan.h
-)
- 
-set(SRCS
+	)
+
+set(COMMON_SRCS
 	src/BaseApplication.cpp
-	src/OgreApp.cpp
 	src/terrainGenerator.cpp
 	src/terrainPager.cpp
 	src/perlinNoise.cpp
+	)
+
+set(CLIENT_HDRS
+	include/ClientApp.h
+	include/cameraMan.h
+	)
+set(CLIENT_SRCS
+	src/ClientApp.cpp
 	src/cameraMan.cpp
-)
- 
+	)
+
+set(SERVER_HDRS
+	include/ServerApp.h
+	)
+set(SERVER_SRCS
+	src/ServerApp.cpp
+	)
+
 include_directories(
 	${OIS_INCLUDE_DIRS}
 	${OGRE_INCLUDE_DIRS}
 	${OGRE_SAMPLES_INCLUDEPATH}
-)
- 
-# TODO
-add_executable(server src/serverTest.cpp)
-add_executable(client src/clientTest.cpp)
+	)
+
+add_executable(server ${COMMON_HDRS} ${COMMON_SRCS} ${SERVER_HDRS} ${SERVER_SRCS})
+add_executable(client ${COMMON_HDRS} ${COMMON_SRCS} ${CLIENT_HDRS} ${CLIENT_SRCS})
+
 target_link_libraries(server ${ENET_LIBRARIES})
 target_link_libraries(client ${ENET_LIBRARIES})
 
-add_executable(game WIN32 ${HDRS} ${SRCS})
- 
-set_target_properties(game PROPERTIES DEBUG_POSTFIX _d)
- 
-target_link_libraries(game ${OGRE_LIBRARIES} ${OIS_LIBRARIES})
- 
+set_target_properties(server PROPERTIES DEBUG_POSTFIX _d)
+set_target_properties(client PROPERTIES DEBUG_POSTFIX _d)
+
+target_link_libraries(server ${OGRE_LIBRARIES} ${OIS_LIBRARIES})
+target_link_libraries(client ${OGRE_LIBRARIES} ${OIS_LIBRARIES})
+
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dist/bin)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/dist/media)
- 
+
 # post-build copy for win32
 if(WIN32 AND NOT MINGW)
-	add_custom_command( TARGET game PRE_BUILD
+	add_custom_command( TARGET client PRE_BUILD
 		COMMAND if not exist .\\dist\\bin mkdir .\\dist\\bin )
-	add_custom_command( TARGET game POST_BUILD
+	add_custom_command( TARGET client POST_BUILD
+		COMMAND copy \"$(TargetPath)\" .\\dist\\bin )
+
+	add_custom_command( TARGET server PRE_BUILD
+		COMMAND if not exist .\\dist\\bin mkdir .\\dist\\bin )
+	add_custom_command( TARGET server POST_BUILD
 		COMMAND copy \"$(TargetPath)\" .\\dist\\bin )
 endif(WIN32 AND NOT MINGW)
 
 if(MINGW OR UNIX)
 	set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/dist/bin)
 endif(MINGW OR UNIX)
- 
+
 if(WIN32)
- 
-	install(TARGETS game
+
+	install(TARGETS client server
 		RUNTIME DESTINATION bin
 		CONFIGURATIONS All)
- 
+
 	install(DIRECTORY ${CMAKE_SOURCE_DIR}/dist/Media
 		DESTINATION ./
 		CONFIGURATIONS Release RelWithDebInfo Debug
-	)
- 
+		)
+
 	install(FILES ${CMAKE_SOURCE_DIR}/dist/bin/plugins.cfg
 		${CMAKE_SOURCE_DIR}/dist/bin/resources.cfg
 		DESTINATION bin
 		CONFIGURATIONS Release RelWithDebInfo
-	)
- 
+		)
+
 	install(FILES ${CMAKE_SOURCE_DIR}/dist/bin/plugins_d.cfg
 		${CMAKE_SOURCE_DIR}/dist/bin/resources_d.cfg
 		DESTINATION bin
 		CONFIGURATIONS Debug
-	)
- 
-        # NOTE: for the 1.7.1 sdk the OIS dll is called OIS.dll instead of libOIS.dll
-        # so you'll have to change that to make it work with 1.7.1
+		)
+
+	# NOTE: for the 1.7.1 sdk the OIS dll is called OIS.dll instead of libOIS.dll
+	# so you'll have to change that to make it work with 1.7.1
 	install(FILES ${OGRE_PLUGIN_DIR_REL}/OgreMain.dll
 		${OGRE_PLUGIN_DIR_REL}/RenderSystem_Direct3D9.dll
 		${OGRE_PLUGIN_DIR_REL}/RenderSystem_GL.dll
 		${OGRE_PLUGIN_DIR_REL}/libOIS.dll
 		DESTINATION bin
 		CONFIGURATIONS Release RelWithDebInfo
-	)
- 
+		)
+
 	install(FILES ${OGRE_PLUGIN_DIR_DBG}/OgreMain_d.dll
 		${OGRE_PLUGIN_DIR_DBG}/RenderSystem_Direct3D9_d.dll
 		${OGRE_PLUGIN_DIR_DBG}/RenderSystem_GL_d.dll
 		${OGRE_PLUGIN_DIR_DBG}/libOIS_d.dll
 		DESTINATION bin
 		CONFIGURATIONS Debug
-	)
- 
-   # as of sdk 1.7.2 we need to copy the boost dll's as well
-   # because they're not linked statically (it worked with 1.7.1 though)
-   install(FILES ${Boost_DATE_TIME_LIBRARY_RELEASE}
-      ${Boost_THREAD_LIBRARY_RELEASE}
-	  ${Boost_SYSTEM_LIBRARY_RELEASE}
-      DESTINATION bin
-      CONFIGURATIONS Release RelWithDebInfo
-   )
- 
-   install(FILES ${Boost_DATE_TIME_LIBRARY_DEBUG}
-      ${Boost_THREAD_LIBRARY_DEBUG}
-	  ${Boost_SYSTEM_LIBRARY_RELEASE}
-      DESTINATION bin
-      CONFIGURATIONS Debug
-   )
+		)
+
+	# as of sdk 1.7.2 we need to copy the boost dll's as well
+	# because they're not linked statically (it worked with 1.7.1 though)
+	install(FILES ${Boost_DATE_TIME_LIBRARY_RELEASE}
+		${Boost_THREAD_LIBRARY_RELEASE}
+		${Boost_SYSTEM_LIBRARY_RELEASE}
+		DESTINATION bin
+		CONFIGURATIONS Release RelWithDebInfo
+		)
+
+	install(FILES ${Boost_DATE_TIME_LIBRARY_DEBUG}
+		${Boost_THREAD_LIBRARY_DEBUG}
+		${Boost_SYSTEM_LIBRARY_RELEASE}
+		DESTINATION bin
+		CONFIGURATIONS Debug
+		)
 endif(WIN32)
 
 if(UNIX)
- 
-	install(TARGETS game
+
+	install(TARGETS client server
 		RUNTIME DESTINATION bin
 		CONFIGURATIONS All)
- 
+
 	install(DIRECTORY ${CMAKE_SOURCE_DIR}/dist/media
 		DESTINATION ./
 		CONFIGURATIONS Release RelWithDebInfo Debug
-	)
- 
+		)
+
 	install(FILES ${CMAKE_SOURCE_DIR}/dist/bin/plugins.cfg
 		${CMAKE_SOURCE_DIR}/dist/bin/resources.cfg
 		DESTINATION bin
 		CONFIGURATIONS Release RelWithDebInfo Debug
-	)
- 
+		)
+
 endif(UNIX)
- 
+

@@ -297,18 +297,20 @@ ENetPacket* TerrainPager::serialize( chunkCoord coord )
 
 	int buffer_offset = 2*sizeof(int32_t);
 
-	for( int x = region.getLowerCorner.getX(); x < region.getUpperCorner.getX(); x++ )
+	PolyVox::Region region( toRegion( coord ) );
+
+	for( int x = region.getLowerCorner().getX(); x < region.getUpperCorner().getX(); x++ )
 	{
-		for( int y = region.getLowerCorner.getY(); y < region.getUpperCorner.getY(); y++ )
+		for( int y = region.getLowerCorner().getY(); y < region.getUpperCorner().getY(); y++ )
 		{
-			for( int z = region.getLowerCorner.getZ(); z < region.getUpperCorner.getZ(); z++ )
+			for( int z = region.getLowerCorner().getZ(); z < region.getUpperCorner().getZ(); z++ )
 			{
-				buffer[buffer_offset++] = getVoxelAt(x, y, z).getMaterial();
+				buffer[buffer_offset++] = getVoxelAt( PolyVox::Vector3DInt32(x, y, z) ).getMaterial();
 			}
 		}
 	}
 
-	ENetPacket *packet = enet_packet_create( buffer, buffer_size, ENET_PACKET_RELIABLE );
+	ENetPacket *packet = enet_packet_create( buffer, buffer_size, ENET_PACKET_FLAG_RELIABLE );
 
 	delete [] buffer;
 	return packet;
@@ -321,20 +323,20 @@ int TerrainPager::unserialize( ENetPacket *packet )
 
 	// undo the above
 	// first extract the coord
-	int32_t *coord_data = packet->data;
+	int32_t *coord_data = (int32_t*)packet->data;
 	
-	chunkCoord coord = make_pair( coord_data[0], coord_data[1] );
+	chunkCoord coord = std::make_pair( coord_data[0], coord_data[1] );
 	PolyVox::Region region( toRegion( coord ) );
 
-	uint8_t buffer = packet->data;
+	uint8_t *buffer = packet->data;
 	int buffer_offset = 2*sizeof(int32_t);
 
 	// now extract the voxels
-	for( int x = region.getLowerCorner.getX(); x < region.getUpperCorner.getX(); x++ )
+	for( int x = region.getLowerCorner().getX(); x < region.getUpperCorner().getX(); x++ )
 	{
-		for( int y = region.getLowerCorner.getY(); y < region.getUpperCorner.getY(); y++ )
+		for( int y = region.getLowerCorner().getY(); y < region.getUpperCorner().getY(); y++ )
 		{
-			for( int z = region.getLowerCorner.getZ(); z < region.getUpperCorner.getZ(); z++ )
+			for( int z = region.getLowerCorner().getZ(); z < region.getUpperCorner().getZ(); z++ )
 			{
 				volume.setVoxelAt( x, y, z, PolyVox::Material8(buffer[buffer_offset++]) );
 			}
@@ -342,6 +344,8 @@ int TerrainPager::unserialize( ENetPacket *packet )
 	}
 	// the chunk has changed
 	chunkDirty[coord] = true;
+
+	return 0;
 }
 
 const PolyVox::Region TerrainPager::toRegion( const chunkCoord &coord )
