@@ -700,6 +700,8 @@ bool ClientApp::keyPressed( const OIS::KeyEvent& arg )
 			doTerrainUpdate();
 		}
 	}
+	
+	mCameraMan->injectKeyDown(arg);
 
 	return true;
 }

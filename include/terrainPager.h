@@ -94,7 +94,7 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 
 		// mapping from chunk coord to mesh id
 		std::map<chunkCoord, int> chunkToMesh;
-		std::map<chunkCoord, bool> chunkProcessing;
+		static std::map<chunkCoord, bool> chunkProcessing;
 		std::map<chunkCoord, bool> chunkDirty;
 };
 
