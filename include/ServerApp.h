@@ -31,6 +31,8 @@ protected:
     virtual bool setup();
     virtual bool setupNetwork();
 
+	void syncToClient( ENetPeer* peer );
+
 	ENetHost *server;
 	std::vector<PlayerEntity> players;
 };

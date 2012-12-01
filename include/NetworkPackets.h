@@ -12,15 +12,21 @@
 #include <enet/enet.h>
 
 enum PacketType {
+	// connection sequence
+	CONNECTION_REQUEST_SYNC,	// Request sync of entities from the server
+	CONNECTION_SYNC_FINISHED,	// Finished sending entities for sync
+
 	// player messages
-	PLAYER_CONNECT_PACKET,		// player joined server
-	PLAYER_DISCONNECT_PACKET,	// player left server
-	PLAYER_MOVE_PACKET,			// player moved
+	PLAYER_SET_USERNAME,		// set the username for this player
+	PLAYER_CONNECT,				// player joined server
+	PLAYER_DISCONNECT,			// player left server
+	PLAYER_MOVE,				// player moved
+	PLAYER_SYNC,				// sync player from server
 
 	// terrain messages
-	TERRAIN_REQUEST_PACKET,		// load request
-	TERRAIN_RESPONSE_PACKET,	// load response
-	TERRAIN_UPDATE_PACKET,		// modification to voxel(s)
+	TERRAIN_REQUEST,			// load request
+	TERRAIN_RESPONSE,			// load response
+	TERRAIN_UPDATE,				// modification to voxel(s)
 
 	// End of packets
 	PACKET_TYPE_SENTINEL		// MUST BE LAST

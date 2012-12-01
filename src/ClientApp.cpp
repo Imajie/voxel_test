@@ -115,13 +115,13 @@ ClientApp::ClientApp(void) : terrain(NULL),
 	mWindow(0),
 	mResourcesCfg(Ogre::StringUtil::BLANK),
 	mTrayMgr(0),
-	mCameraMan(0),
 	mDetailsPanel(0),
 	mCursorWasVisible(false),
 	mShutDown(false),
 	mInputManager(0),
 	mMouse(0),
-	mKeyboard(0)
+	mKeyboard(0),
+	mCameraMan(0)
 {
 }
 //-------------------------------------------------------------------------------------
@@ -277,6 +277,69 @@ void ClientApp::loadResources(void)
 	Ogre::ResourceGroupManager::getSingleton().initialiseAllResourceGroups();
 }
 //-------------------------------------------------------------------------------------
+void ClientApp::syncWithServer(void)
+{
+	// request entity sync
+	Packet packet;
+	packet.type = CONNECTION_REQUEST_SYNC;
+	packet.data.clear();
+
+	packet.send(server, ENET_PACKET_FLAG_RELIABLE);
+
+	// send packet
+	enet_host_flush( client );
+
+	// now handle entity sync packets
+	bool syncFinished = false;
+	ENetEvent event;
+	bool objectSync = false;
+
+	while( !syncFinished && enet_host_service(client, &event, 5000 ) >= 0 && event.type == ENET_EVENT_TYPE_RECEIVE )
+	{
+		Packet entityPacket;
+		entityPacket.unserialize( event.packet->data, event.packet->dataLength );
+
+		objectSync = false;
+
+		PlayerEntity syncPlayer( 0, "" );
+
+		switch( entityPacket.type )
+		{
+			case PLAYER_SYNC:	// new player
+				if( syncPlayer.unserialize( entityPacket ) )
+				{
+					for( auto player: players )
+					{
+
+						if( player.getId() == syncPlayer.getId() )
+						{
+							player.unserialize( entityPacket );
+							objectSync = true;
+							break;
+						}
+					}
+					if( !objectSync )
+					{
+						// new player
+						players.push_back( syncPlayer );
+					}
+				}
+				else
+				{
+					fprintf(stderr, "Failed to unserialize player packet\n");
+				}
+				break;
+			case CONNECTION_SYNC_FINISHED:
+				syncFinished = true;
+				break;
+			default:
+				fprintf(stderr, "Unhandled packet type during sync %i\n", entityPacket.type);
+				break;
+		}
+	}
+}
+
+//-------------------------------------------------------------------------------------
 bool ClientApp::setupNetwork(void)
 {
 	// initialize ENet
@@ -327,13 +390,20 @@ bool ClientApp::setupNetwork(void)
 	{
 		cout << "Connection to server succeeded" << endl;
 
-		ENetPacket *packet = enet_packet_create( userName.c_str(), userName.length()+1, ENET_PACKET_FLAG_RELIABLE );
+		// set our username
+		Packet packet;
+		packet.type = PLAYER_SET_USERNAME;
+		packet.data = std::vector<char>(userName.begin(), userName.end());
 
-		enet_peer_send( server, 0, packet );
+		packet.send(server, ENET_PACKET_FLAG_RELIABLE);
 		enet_host_flush( client );
+
+		// sync with server entities
+		syncWithServer( );
 
 		return true;
 	}
+
 	return false;
 }
 //-------------------------------------------------------------------------------------
@@ -378,20 +448,20 @@ void ClientApp::go(void)
 
 					switch( recvPacket.type )
 					{
-						case PLAYER_CONNECT_PACKET:
+						case PLAYER_CONNECT:
 							break;
-						case PLAYER_DISCONNECT_PACKET:
+						case PLAYER_DISCONNECT:
 							break;
-						case PLAYER_MOVE_PACKET:
+						case PLAYER_MOVE:
 							break;
 
-						case TERRAIN_REQUEST_PACKET:
+						case TERRAIN_REQUEST:
 							// not used in client
 							break;
-						case TERRAIN_RESPONSE_PACKET:
+						case TERRAIN_RESPONSE:
 							terrain->unserialize( &recvPacket );
 							break;
-						case TERRAIN_UPDATE_PACKET:
+						case TERRAIN_UPDATE:
 							break;
 
 						default:

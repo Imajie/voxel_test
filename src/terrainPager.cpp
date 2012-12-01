@@ -309,7 +309,7 @@ Packet* TerrainPager::serialize( chunkCoord coord )
 
 	Packet *packet = new Packet();
 
-	packet->type = TERRAIN_RESPONSE_PACKET;
+	packet->type = TERRAIN_RESPONSE;
 
 	uint32_t coord_int[2] = { htonl(coord.first),  htonl(coord.second) };
 	packet->data = std::vector<char>((uint8_t*)coord_int, (uint8_t*)coord_int+sizeof(coord_int)/sizeof(uint8_t));
@@ -359,10 +359,10 @@ int TerrainPager::unserialize( Packet *packet )
 	}
 	// the chunk has changed
 	chunkProcessing[coord] = false;
-	chunkProcessing[std::make_pair( coord.first+1, coord.second ) ] = true;
-	chunkProcessing[std::make_pair( coord.first-1, coord.second ) ] = true;
-	chunkProcessing[std::make_pair( coord.first, coord.second+1 ) ] = true;
-	chunkProcessing[std::make_pair( coord.first, coord.second-1 ) ] = true;
+	chunkProcessing[std::make_pair( coord.first+1, coord.second ) ] = false;
+	chunkProcessing[std::make_pair( coord.first-1, coord.second ) ] = false;
+	chunkProcessing[std::make_pair( coord.first, coord.second+1 ) ] = false;
+	chunkProcessing[std::make_pair( coord.first, coord.second-1 ) ] = false;
 
 	chunkDirty[coord] = true;
 	chunkDirty[std::make_pair( coord.first+1, coord.second ) ] = true;
@@ -454,7 +454,7 @@ void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Materia
 		// ask server for this chunk
 		Packet terrainRequest;
 
-		terrainRequest.type = TERRAIN_REQUEST_PACKET;
+		terrainRequest.type = TERRAIN_REQUEST;
 		uint32_t coord_int[2] = { htonl(coord.first), htonl(coord.second) };
 		terrainRequest.data = std::vector<char>( (uint8_t*)coord_int, (uint8_t*)coord_int + sizeof(coord_int)/sizeof(uint8_t) );
 

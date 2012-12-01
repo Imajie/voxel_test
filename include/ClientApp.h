@@ -6,6 +6,7 @@
  
 #include "BaseApplication.h"
 #include "terrainPager.h"
+#include "PlayerEntity.h"
 
 #include <OgreCamera.h>
 #include <OgreEntity.h>
@@ -51,6 +52,7 @@ public:
 protected:
     ClientApp(void);
 
+	void syncWithServer(void);
     virtual void createScene(void);
     virtual void createFrameListener(void);
     virtual void destroyScene(void);
@@ -93,7 +95,6 @@ protected:
 
     // OgreBites
     OgreBites::SdkTrayManager* mTrayMgr;
-    CameraMan* mCameraMan;       // basic camera controller
     OgreBites::ParamsPanel* mDetailsPanel;     // sample details panel
     bool mCursorWasVisible;                    // was cursor visible before dialog appeared
     bool mShutDown;
@@ -102,6 +103,11 @@ protected:
     OIS::InputManager* mInputManager;
     OIS::Mouse*    mMouse;
     OIS::Keyboard* mKeyboard;
+
+
+	// players
+    CameraMan* mCameraMan;       		// basic camera controller, Our player
+	std::vector<PlayerEntity> players;	// all other players
 };
  
 #endif // #ifndef __ClientApp_h_

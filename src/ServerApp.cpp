@@ -68,6 +68,21 @@ bool ServerApp::setupNetwork(void)
 	return true;
 }
 //-------------------------------------------------------------------------------------
+void ServerApp::syncToClient( ENetPeer *peer )
+{
+	// send play connection packets for each connected player, other than us
+	for( auto player : players )
+	{
+		if( player.getId() != peer->address.host )
+		{
+			Packet *syncPacket = player.serialize();
+			syncPacket->type = PLAYER_SYNC;
+			syncPacket->send(peer, ENET_PACKET_FLAG_RELIABLE );
+			delete syncPacket;
+		}
+	}
+}
+//-------------------------------------------------------------------------------------
 void ServerApp::go(void)
 {
 	if (!setup())
@@ -83,69 +98,89 @@ void ServerApp::go(void)
 		// handle network
 		ENetEvent event;
 		std::string playerName;
+		bool newPlayer;
+		Packet recvPacket;
+		Packet *pkt;
 
 		if( enet_host_service( server, &event, 0 ) > 0 )
 		{
+			newPlayer = false;
+
 			switch( event.type )
 			{
 				case ENET_EVENT_TYPE_CONNECT:
 					// new connection request
 					cout << "New connection request from " << event.peer->address.host << ":" << event.peer->address.port << endl;
 
-					event.peer->data = (void*)"";
+					event.peer->data = NULL;
 					break;
 
 				case ENET_EVENT_TYPE_RECEIVE:
-					if( strcmp( (char*)event.peer->data, "" ) == 0 )
+					// new data from a existing client
+					recvPacket.unserialize( event.packet->data, event.packet->dataLength );
+
+					switch( recvPacket.type )
 					{
-						// new client
-						event.peer->data = strdup( (char*)event.packet->data );
+						case CONNECTION_REQUEST_SYNC:
+							syncToClient( event.peer );
+							break;
+						case CONNECTION_SYNC_FINISHED:
+							// not used in server
+							break;
+						case PLAYER_SET_USERNAME:
+							// free old name if present
+							if( event.peer->data )
+							{
+								cout << "Client " << (char*)event.peer->data << " now known as ";
+								free( event.peer->data );
+								newPlayer = false;
+							}
+							else
+							{
+								cout << "Client " << event.peer->address.host << " known as ";
+								newPlayer = true;
 
-						cout << "Client " << event.peer->address.host << " known as " << (char*)event.peer->data << endl;
+							}
 
-						playerName = (char*)event.peer->data;
-						players.push_back( PlayerEntity( playerName ) );
+							event.peer->data = strdup( (char*)&recvPacket.data[0] );
 
-						// broadcast to all clients
-						Packet joinPacket;
-						joinPacket.type = PLAYER_CONNECT_PACKET;
-						for( char c : playerName )
-						{
-							joinPacket.data.push_back(c);
-						}
+							cout << (char*)event.peer->data << endl;
 
-						joinPacket.broadcast(server, ENET_PACKET_FLAG_RELIABLE);
-					}
-					else
-					{
-						// new data from a existing client
-						Packet recvPacket;
-						Packet *pkt;
-						recvPacket.unserialize( event.packet->data, event.packet->dataLength );
+							if( newPlayer )
+							{
+								playerName = std::string( (char*)event.peer->data );
+								// add player to game
+								players.push_back( PlayerEntity(event.peer->address.host, playerName) );
 
-						switch( recvPacket.type )
-						{
-							case PLAYER_CONNECT_PACKET:
-								break;
-							case PLAYER_DISCONNECT_PACKET:
-								break;
-							case PLAYER_MOVE_PACKET:
-								break;
+								// broadcast to all clients
+								Packet joinPacket;
+								joinPacket.type = PLAYER_CONNECT;
+								joinPacket.data = std::vector<char>(playerName.begin(), playerName.end());
 
-							case TERRAIN_REQUEST_PACKET:
-								pkt = terrain->request( &recvPacket );
-								pkt->send( event.peer, ENET_PACKET_FLAG_RELIABLE );
-								delete pkt;
-								break;
-							case TERRAIN_RESPONSE_PACKET:
-								// not used in server
-								break;
-							case TERRAIN_UPDATE_PACKET:
-								break;
+								joinPacket.broadcast(server, ENET_PACKET_FLAG_RELIABLE);
+							}
 
-							default:
-								break;
-						}
+							break;
+						case PLAYER_CONNECT:
+							break;
+						case PLAYER_DISCONNECT:
+							break;
+						case PLAYER_MOVE:
+							break;
+
+						case TERRAIN_REQUEST:
+							pkt = terrain->request( &recvPacket );
+							pkt->send( event.peer, ENET_PACKET_FLAG_RELIABLE );
+							delete pkt;
+							break;
+						case TERRAIN_RESPONSE:
+							// not used in server
+							break;
+						case TERRAIN_UPDATE:
+							break;
+
+						default:
+							break;
 					}
 					break;
 
@@ -160,7 +195,7 @@ void ServerApp::go(void)
 						if( playerName == players[i].getName() )
 						{
 							Packet dropPacket;
-							dropPacket.type = PLAYER_DISCONNECT_PACKET;
+							dropPacket.type = PLAYER_DISCONNECT;
 							for( char c : playerName )
 							{
 								dropPacket.data.push_back(c);

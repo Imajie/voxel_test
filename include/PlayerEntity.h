@@ -14,7 +14,7 @@
 class PlayerEntity : public GameObject
 {
 	public:
-		PlayerEntity( std::string playerName );
+		PlayerEntity( uint32_t hostAddr, std::string playerName );
 		virtual ~PlayerEntity();
 
 		virtual Packet* serialize() const;
@@ -25,8 +25,19 @@ class PlayerEntity : public GameObject
 			return playerName;
 		}
 
+		void setName( std::string& newName )
+		{
+			playerName = newName;
+		}
+
+		const uint32_t getId() const
+		{
+			return hostAddr;
+		}
+
 	private:
 		std::string playerName;
+		uint32_t hostAddr;
 };
 
 #endif
