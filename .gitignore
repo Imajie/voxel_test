@@ -10,3 +10,16 @@
 *.lai
 *.la
 *.a
+
+# vim swap
+.*.swp
+
+#cmake files
+CMakeCache.txt
+CMakeFiles
+*.cmake
+Makefile
+
+# executables
+dist/bin/*
+
