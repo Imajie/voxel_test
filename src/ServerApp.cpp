@@ -101,6 +101,8 @@ void ServerApp::go(void)
 		bool newPlayer;
 		Packet recvPacket;
 		Packet *pkt;
+		ENetPacket *enet_packet;
+		uint32_t new_client_addr[2];
 
 		if( enet_host_service( server, &event, 0 ) > 0 )
 		{
@@ -113,6 +115,12 @@ void ServerApp::go(void)
 					cout << "New connection request from " << event.peer->address.host << ":" << event.peer->address.port << endl;
 
 					event.peer->data = NULL;
+
+					new_client_addr[0] = htonl(CONNECTION_CLIENT_ID);
+					new_client_addr[1] = htonl(event.peer->address.host);
+					enet_packet = enet_packet_create( &new_client_addr, sizeof(new_client_addr)/sizeof(uint8_t), ENET_PACKET_FLAG_RELIABLE );
+
+					enet_peer_send( event.peer, 0, enet_packet );
 					break;
 
 				case ENET_EVENT_TYPE_RECEIVE:
@@ -153,11 +161,10 @@ void ServerApp::go(void)
 								players.push_back( PlayerEntity(event.peer->address.host, playerName) );
 
 								// broadcast to all clients
-								Packet joinPacket;
-								joinPacket.type = PLAYER_CONNECT;
-								joinPacket.data = std::vector<char>(playerName.begin(), playerName.end());
+								Packet *joinPacket = players[players.size()-1].serialize();
+								joinPacket->type = PLAYER_SYNC;
 
-								joinPacket.broadcast(server, ENET_PACKET_FLAG_RELIABLE);
+								joinPacket->broadcast(server, ENET_PACKET_FLAG_RELIABLE);
 							}
 
 							break;

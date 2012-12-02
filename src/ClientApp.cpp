@@ -310,7 +310,6 @@ void ClientApp::syncWithServer(void)
 				{
 					for( auto player: players )
 					{
-
 						if( player.getId() == syncPlayer.getId() )
 						{
 							player.unserialize( entityPacket );
@@ -383,12 +382,35 @@ bool ClientApp::setupNetwork(void)
 		exit(EXIT_FAILURE);
 	}
 
+	clientID = 0;
+
 	// wait for connection to complete
 	ENetEvent event;
 	if( enet_host_service( client, &event, 5000 ) > 0 &&
 			event.type == ENET_EVENT_TYPE_CONNECT  )
 	{
 		cout << "Connection to server succeeded" << endl;
+
+		if( enet_host_service( client, &event, 5000 ) > 0 &&
+				event.type == ENET_EVENT_TYPE_RECEIVE  )
+		{
+			uint32_t *data = (uint32_t*)event.packet->data;
+
+			if( event.packet->dataLength == 2*sizeof(uint32_t) )
+			{
+				if( ntohl(data[0]) == CONNECTION_CLIENT_ID )
+				{
+					clientID = ntohl(data[1]);
+
+					cout << "Got ID( " << clientID << " ) from server" << endl;
+				}
+			}
+			if( clientID == 0 )
+			{
+				cout << "Failed to receive ID from server" << endl;
+				return false;
+			}
+		}
 
 		// set our username
 		Packet packet;
@@ -448,6 +470,8 @@ void ClientApp::go(void)
 
 					switch( recvPacket.type )
 					{
+						case PLAYER_SYNC:
+							break;
 						case PLAYER_CONNECT:
 							break;
 						case PLAYER_DISCONNECT:
@@ -512,7 +536,9 @@ bool ClientApp::setup(void)
 	if( !BaseApplication::setup() )
 		return false;
 
-	setupNetwork();
+	if( !setupNetwork() )
+		return false;
+
 	setupResources();
 
 	bool carryOn = configure();
@@ -675,61 +701,9 @@ bool ClientApp::keyPressed( const OIS::KeyEvent& arg )
 			mDetailsPanel->hide();
 		}
 	}
-	else if (arg.key == OIS::KC_T)   // cycle polygon rendering mode
+	else if(arg.key == OIS::KC_F1)	// debug
 	{
-		Ogre::String newVal;
-		Ogre::TextureFilterOptions tfo;
-		unsigned int aniso;
-
-		switch (mDetailsPanel->getParamValue(9).asUTF8()[0])
-		{
-			case 'B':
-				newVal = "Trilinear";
-				tfo = Ogre::TFO_TRILINEAR;
-				aniso = 1;
-				break;
-			case 'T':
-				newVal = "Anisotropic";
-				tfo = Ogre::TFO_ANISOTROPIC;
-				aniso = 8;
-				break;
-			case 'A':
-				newVal = "None";
-				tfo = Ogre::TFO_NONE;
-				aniso = 1;
-				break;
-			default:
-				newVal = "Bilinear";
-				tfo = Ogre::TFO_BILINEAR;
-				aniso = 1;
-		}
-
-		Ogre::MaterialManager::getSingleton().setDefaultTextureFiltering(tfo);
-		Ogre::MaterialManager::getSingleton().setDefaultAnisotropy(aniso);
-		mDetailsPanel->setParamValue(9, newVal);
-	}
-	else if (arg.key == OIS::KC_P)   // cycle polygon rendering mode
-	{
-		Ogre::String newVal;
-		Ogre::PolygonMode pm;
-
-		switch (mCamera->getPolygonMode())
-		{
-			case Ogre::PM_SOLID:
-				newVal = "Wireframe";
-				pm = Ogre::PM_WIREFRAME;
-				break;
-			case Ogre::PM_WIREFRAME:
-				newVal = "Points";
-				pm = Ogre::PM_POINTS;
-				break;
-			default:
-				newVal = "Solid";
-				pm = Ogre::PM_SOLID;
-		}
-
-		mCamera->setPolygonMode(pm);
-		mDetailsPanel->setParamValue(10, newVal);
+		terrain->dumpDebug();
 	}
 	else if(arg.key == OIS::KC_F5)   // refresh all textures
 	{

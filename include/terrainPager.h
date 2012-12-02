@@ -58,6 +58,17 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 
 		// convert chunk coordinates into region
 		static const PolyVox::Region toRegion( const chunkCoord &coord );
+
+		const void dumpDebug()
+		{
+			printf("chunkToMesh:\n");
+			for( auto m : chunkToMesh )
+			{
+				printf("\t(%i, %i)->%i\n", m.first.first, m.first.second, m.second);
+			}
+			printf("\n");
+		}
+
 	private:
 		BaseApplication *app;
 

@@ -88,6 +88,8 @@ protected:
 	ENetHost *client;
 	ENetPeer *server;
 
+	uint32_t clientID;
+
     Ogre::Camera* mCamera;
     Ogre::SceneManager* mSceneMgr;
     Ogre::RenderWindow* mWindow;

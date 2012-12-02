@@ -15,6 +15,7 @@ enum PacketType {
 	// connection sequence
 	CONNECTION_REQUEST_SYNC,	// Request sync of entities from the server
 	CONNECTION_SYNC_FINISHED,	// Finished sending entities for sync
+	CONNECTION_CLIENT_ID,		// Our ID from the server
 
 	// player messages
 	PLAYER_SET_USERNAME,		// set the username for this player

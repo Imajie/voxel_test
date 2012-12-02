@@ -147,22 +147,28 @@ void TerrainPager::handleResponse (const Ogre::WorkQueue::Response *res, const O
 	boost::mutex::scoped_lock lock(resp_mutex);
 	ExtractRequest *req = res->getRequest()->getData().get<ExtractRequest*>();
 
-	if( req->new_mesh )
+	int beginIndex = req->poly_mesh.m_vecLodRecords[0].beginIndex;
+	int endIndex = req->poly_mesh.m_vecLodRecords[0].endIndex;
+
+	if( endIndex != beginIndex )
 	{
-		// add chunk to map
-		chunkToMesh[req->coord] = manObj->getNumSections();
+		if( req->new_mesh )
+		{
+			// add chunk to map
+			chunkToMesh[req->coord] = manObj->getNumSections();
 
-		// add chunk to map
-		manObj->begin("VoxelTexture", Ogre::RenderOperation::OT_TRIANGLE_LIST);
+			// add chunk to map
+			manObj->begin("VoxelTexture", Ogre::RenderOperation::OT_TRIANGLE_LIST);
+		}
+		else
+		{
+			manObj->beginUpdate( chunkToMesh[req->coord] );
+		}
+
+		genMesh( req->region, req->poly_mesh );
+
+		manObj->end();
 	}
-	else
-	{
-		manObj->beginUpdate( chunkToMesh[req->coord] );
-	}
-
-	genMesh( req->region, req->poly_mesh );
-
-	manObj->end();
 
 	chunkProcessing[req->coord] = false;
 	chunkDirty[req->coord] = false;
