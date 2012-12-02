@@ -184,8 +184,7 @@ void ServerApp::go(void)
 							break;
 
 						case TERRAIN_REQUEST:
-							terrain->request( recvPacket, respPacket );
-							respPacket.send( event.peer, ENET_PACKET_FLAG_RELIABLE );
+							terrain->request( recvPacket, event.peer );
 							break;
 						case TERRAIN_RESPONSE:
 							// not used in server

@@ -42,7 +42,7 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		// serialization
 		void serialize( chunkCoord coord, Packet &packet );
 		int unserialize( Packet &packet );
-		void request( Packet &req, Packet &resp );
+		void request( Packet &req, ENetPeer *peer );
 
 		// volume interface
 		PolyVox::Region getEnclosingRegion() { return volume.getEnclosingRegion(); }
