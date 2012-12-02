@@ -9,6 +9,8 @@
 
 const char* Packet::serialize()
 {
+//	dumpDebug();
+
 	char *buffer = new char[data.size()+sizeof(size_t)+sizeof(PacketType)];
 
 	((PacketType*)buffer)[0] = type;
@@ -37,6 +39,8 @@ void Packet::unserialize( const unsigned char* packet, size_t size )
 		data.push_back(*ptr);
 		ptr++;
 	}
+
+//	dumpDebug();
 }
 
 /* 

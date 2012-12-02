@@ -242,7 +242,6 @@ void ClientApp::syncWithServer(void)
 	// request entity sync
 	Packet packet;
 	packet.type = CONNECTION_REQUEST_SYNC;
-	packet.data.clear();
 
 	packet.send(server, ENET_PACKET_FLAG_RELIABLE);
 
@@ -375,7 +374,10 @@ bool ClientApp::setupNetwork(void)
 		// set our username
 		Packet packet;
 		packet.type = PLAYER_SET_USERNAME;
-		packet.data = std::vector<char>(userName.begin(), userName.end());
+		for( char c : userName )
+		{
+			packet.push(c);
+		}
 
 		packet.send(server, ENET_PACKET_FLAG_RELIABLE);
 		enet_host_flush( client );
@@ -443,7 +445,7 @@ void ClientApp::go(void)
 							// not used in client
 							break;
 						case TERRAIN_RESPONSE:
-							terrain->unserialize( &recvPacket );
+							terrain->unserialize( recvPacket );
 							break;
 						case TERRAIN_UPDATE:
 							break;

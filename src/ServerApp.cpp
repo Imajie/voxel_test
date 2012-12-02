@@ -100,7 +100,7 @@ void ServerApp::go(void)
 		std::string playerName;
 		bool newPlayer;
 		Packet recvPacket;
-		Packet *pkt;
+		Packet respPacket;
 		ENetPacket *enet_packet;
 		uint32_t new_client_addr[2];
 
@@ -150,7 +150,12 @@ void ServerApp::go(void)
 
 							}
 
-							event.peer->data = strdup( (char*)&recvPacket.data[0] );
+							playerName.clear();
+							while( recvPacket.getSize() )
+							{
+								playerName.push_back( recvPacket.pop<char>() );
+							}
+							event.peer->data = strdup( playerName.c_str() );
 
 							cout << (char*)event.peer->data << endl;
 
@@ -176,9 +181,8 @@ void ServerApp::go(void)
 							break;
 
 						case TERRAIN_REQUEST:
-							pkt = terrain->request( &recvPacket );
-							pkt->send( event.peer, ENET_PACKET_FLAG_RELIABLE );
-							delete pkt;
+							terrain->request( recvPacket, respPacket );
+							respPacket.send( event.peer, ENET_PACKET_FLAG_RELIABLE );
 							break;
 						case TERRAIN_RESPONSE:
 							// not used in server
@@ -205,7 +209,7 @@ void ServerApp::go(void)
 							dropPacket.type = PLAYER_DISCONNECT;
 							for( char c : playerName )
 							{
-								dropPacket.data.push_back(c);
+								dropPacket.push(c);
 							}
 							
 							dropPacket.broadcast(server, ENET_PACKET_FLAG_RELIABLE);
