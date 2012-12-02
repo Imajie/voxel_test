@@ -104,6 +104,9 @@ void ServerApp::go(void)
 		ENetPacket *enet_packet;
 		uint32_t new_client_addr[2];
 
+		int32_t vecX, vecY, vecZ;
+		uint8_t mat;
+
 		if( enet_host_service( server, &event, 0 ) > 0 )
 		{
 			newPlayer = false;
@@ -188,6 +191,43 @@ void ServerApp::go(void)
 							// not used in server
 							break;
 						case TERRAIN_UPDATE:
+							// update this pixel
+							vecX = recvPacket.pop<int32_t>();
+							vecY = recvPacket.pop<int32_t>();
+							vecZ = recvPacket.pop<int32_t>();
+
+							mat = recvPacket.pop<uint8_t>();
+
+							// TODO verify change can occur
+							if( true )
+							{
+								terrain->setVoxelAt(PolyVox::Vector3DInt32(vecX, vecY, vecZ), PolyVox::Material8(mat));
+
+								// notify clients of the change
+								respPacket.clear();
+								respPacket.type = TERRAIN_UPDATE;
+
+								respPacket.push(vecX);
+								respPacket.push(vecY);
+								respPacket.push(vecZ);
+								respPacket.push(mat);
+
+								respPacket.broadcast( server, ENET_PACKET_FLAG_RELIABLE );
+							}
+							else
+							{
+								// notify client that that change didn't in fact happen
+								respPacket.clear();
+								respPacket.type = TERRAIN_UPDATE;
+
+								respPacket.push(vecX);
+								respPacket.push(vecY);
+								respPacket.push(vecZ);
+								respPacket.push(terrain->getVoxelAt(PolyVox::Vector3DInt32(vecX, vecY, vecZ)).getMaterial());
+
+								respPacket.send( event.peer, ENET_PACKET_FLAG_RELIABLE );
+							}
+
 							break;
 
 						default:

@@ -75,6 +75,17 @@ PolyVox::Material8 TerrainPager::getVoxelAt( const PolyVox::Vector3DInt32 &vec )
 	return volume.getVoxelAt( vec );
 }
 
+void TerrainPager::processUpdate( Packet &packet )
+{
+	int32_t vecX = packet.pop<int32_t>();
+	int32_t vecY = packet.pop<int32_t>();
+	int32_t vecZ = packet.pop<int32_t>();
+
+	uint8_t mat = packet.pop<uint8_t>();
+
+	volume.setVoxelAt(PolyVox::Vector3DInt32(vecX, vecY, vecZ), PolyVox::Material8(mat));
+}
+
 void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Material8 mat )
 {
 	boost::mutex::scoped_lock lock(req_mutex);
@@ -86,7 +97,18 @@ void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Mater
 	}
 	volume.setVoxelAt( vec, mat );
 
-	// TODO client needs to send update to server
+#ifdef CLIENT_SIDE
+	// Notify the server of the change
+	Packet modifyPacket;
+	modifyPacket.type = TERRAIN_UPDATE;
+
+	modifyPacket.push(vec.getX());
+	modifyPacket.push(vec.getY());
+	modifyPacket.push(vec.getZ());
+	modifyPacket.push(mat.getMaterial());
+
+	modifyPacket.send( ClientApp::getInstance()->getServer(), ENET_PACKET_FLAG_RELIABLE );
+#endif
 	
 	// mark region and neighbors as dirty
 	chunkCoord coord = toChunkCoord(vec);

@@ -13,6 +13,8 @@
 #include <iostream>
 
 enum PacketType {
+	PACKET_NONE, 				// Default packet type, not valid to transmit
+
 	// connection sequence
 	CONNECTION_REQUEST_SYNC,	// Request sync of entities from the server
 	CONNECTION_SYNC_FINISHED,	// Finished sending entities for sync
@@ -38,6 +40,7 @@ class Packet {
 	public:
 		PacketType type;
 
+		void clear() { data.clear(); type = PACKET_NONE; }
 		void dumpDebug()
 		{
 			std::cerr << (int)type << " ";

@@ -48,6 +48,7 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		PolyVox::Region getEnclosingRegion() { return volume.getEnclosingRegion(); }
 		PolyVox::Material8 getVoxelAt( const PolyVox::Vector3DInt32 &vec );
 		void setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Material8 mat );
+		void processUpdate( Packet &packet );
 
 		// lock
 		void lock() { mutex.lock(); }

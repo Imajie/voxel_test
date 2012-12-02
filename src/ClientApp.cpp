@@ -448,6 +448,8 @@ void ClientApp::go(void)
 							terrain->unserialize( recvPacket );
 							break;
 						case TERRAIN_UPDATE:
+							// update this pixel, trust the server
+							terrain->processUpdate( recvPacket );
 							break;
 
 						default:
