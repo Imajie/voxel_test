@@ -96,7 +96,7 @@ void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Mater
 		chunkDirty[ std::make_pair(coord.first-1, coord.second) ] = true;
 	}
 
-	if( vec.getX()+1 % CHUNK_SIZE == 0 )
+	if( (vec.getX()+1) % CHUNK_SIZE == 0 )
 	{
 		chunkDirty[ std::make_pair(coord.first+1, coord.second) ] = true;
 	}
@@ -106,7 +106,7 @@ void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Mater
 		chunkDirty[ std::make_pair(coord.first, coord.second-1) ] = true;
 	}
 
-	if( vec.getZ()+1 % CHUNK_SIZE == 0 )
+	if( (vec.getZ()+1) % CHUNK_SIZE == 0 )
 	{
 		chunkDirty[ std::make_pair(coord.first, coord.second+1) ] = true;
 	}

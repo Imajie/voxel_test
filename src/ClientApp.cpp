@@ -36,46 +36,6 @@ void ClientApp::doTerrainUpdate()
 	terrain->regenerateMesh( mCamera->getPosition() );
 }
 
-void createSphereInVolume(TerrainPager* volData, float fRadius, PolyVox::Vector3DInt32 _center, uint8_t material)
-{
-	PolyVox::Vector3DFloat center( _center.getX(), _center.getY(), _center.getZ() );
-
-	//This vector hold the position of the center of the volume
-	PolyVox::Region volRegion(volData->getEnclosingRegion());
-
-	//This three-level for loop iterates over every voxel in the volume
-	for (int z = max(center.getZ() - fRadius, (float)volRegion.getLowerCorner().getZ()); z < min(center.getZ() + fRadius, (float)volRegion.getUpperCorner().getZ()); z++)
-	{
-		for (int y = max(center.getY() - fRadius, (float)volRegion.getLowerCorner().getY()); y < min(center.getY() + fRadius, (float)volRegion.getUpperCorner().getY()); y++)
-		{
-			for (int x = max(center.getX() - fRadius, (float)volRegion.getLowerCorner().getX()); x < min(center.getX() + fRadius, (float)volRegion.getUpperCorner().getX()); x++)
-			{
-				//Store our current position as a vector...
-				PolyVox::Vector3DFloat v3dCurrentPos(x,y,z);
-				//And compute how far the current position is from the center of the volume
-				float fDistToCenter = (v3dCurrentPos - center).length();
-
-				//If the current voxel is less than 'radius' units from the center then we make it solid.
-				if(fDistToCenter <= fRadius)
-				{
-					PolyVox::Vector3DInt32 point(x,y,z);
-
-					if( volRegion.containsPoint(point) )
-					{
-						//Get the old voxel
-						PolyVox::Material<uint8_t>  voxel = volData->getVoxelAt(point);
-
-						voxel.setMaterial(material);
-
-						//Wrte the voxel value into the volume
-						volData->setVoxelAt( point, voxel);
-					}
-				}
-			}
-		}
-	}
-}
-
 void ClientApp::createCursor( float radius )
 {
 	radius *= VOXEL_SCALE;
@@ -734,11 +694,13 @@ bool ClientApp::keyPressed( const OIS::KeyEvent& arg )
 		{
 			if( arg.key == OIS::KC_E )
 			{
-				createSphereInVolume( terrain, MODIFY_RADIUS, result.previousVoxel, 1 );
+				std::cout << "Setting " << result.previousVoxel.getX() << ", " << result.previousVoxel.getZ() << std::endl;
+				terrain->setVoxelAt( result.previousVoxel, 1 );
 			}
 			else if( arg.key == OIS::KC_R)
 			{
-				createSphereInVolume( terrain, MODIFY_RADIUS, result.intersectionVoxel, 0 );
+				std::cout << "Clearing " << result.intersectionVoxel.getX() << ", " << result.intersectionVoxel.getZ() << std::endl;
+				terrain->setVoxelAt( result.intersectionVoxel, 0 );
 			}
 
 			doTerrainUpdate();
