@@ -374,7 +374,7 @@ bool ClientApp::setupNetwork(void)
 		// set our username
 		Packet packet;
 		packet.type = PLAYER_SET_USERNAME;
-		packet.push_vector<std::string>(userName.begin(), userName.end());
+		packet.push_vector<std::string>(clientName.begin(), clientName.end());
 
 		packet.send(server, ENET_PACKET_FLAG_RELIABLE);
 		enet_host_flush( client );
