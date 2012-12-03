@@ -83,7 +83,43 @@ class Packet {
 					data.push_back(((uint8_t*)&x)[2]);
 					data.push_back(((uint8_t*)&x)[3]);
 				}
+				else if( sizeof(T) == 8 )
+				{
+					uint32_t val_a, val_b;
+
+					val_a = (uint32_t)((uint64_t)x>>32);
+					val_b = (uint32_t)(x & 0xFFFFFFFF);
+
+					val_b = htonl(val_b);
+					val_a = htonl(val_a);
+
+					data.push_back(((uint8_t*)&val_a)[0]);
+					data.push_back(((uint8_t*)&val_a)[1]);
+					data.push_back(((uint8_t*)&val_a)[2]);
+					data.push_back(((uint8_t*)&val_a)[3]);
+
+					data.push_back(((uint8_t*)&val_b)[0]);
+					data.push_back(((uint8_t*)&val_b)[1]);
+					data.push_back(((uint8_t*)&val_b)[2]);
+					data.push_back(((uint8_t*)&val_b)[3]);
+				}
 			}
+
+		/*
+		   void push( float x )
+		   {
+		   uint32_t val = *(uint32_t*)&x;
+		   push<uint32_t>(val);
+		   }
+		   */
+
+		void push( double x )
+		{
+			union{ double d; uint64_t i; } diu;
+
+			diu.d = x;
+			push<uint64_t>(diu.i);
+		}
 
 		template<typename T>
 			T pop()
@@ -110,9 +146,46 @@ class Packet {
 
 					val = ntohl(val);
 				}
+				else if( sizeof(val) == 8 )
+				{
+					uint32_t val_a, val_b;
+
+					((uint8_t*)&val_a)[0] = data.front(); data.pop_front();
+					((uint8_t*)&val_a)[1] = data.front(); data.pop_front();
+					((uint8_t*)&val_a)[2] = data.front(); data.pop_front();
+					((uint8_t*)&val_a)[3] = data.front(); data.pop_front();
+
+					((uint8_t*)&val_b)[0] = data.front(); data.pop_front();
+					((uint8_t*)&val_b)[1] = data.front(); data.pop_front();
+					((uint8_t*)&val_b)[2] = data.front(); data.pop_front();
+					((uint8_t*)&val_b)[3] = data.front(); data.pop_front();
+
+					val_a = ntohl(val_a);
+					val_b = ntohl(val_b);
+
+					val = ( ((uint64_t)val_a) << 32) | val_b;
+				}
 
 				return val;
 			}
+
+		/*
+		float pop()
+		{
+			uint32_t val = pop<uint32_t>();
+
+			return *(float*)(&val);
+		}
+		*/
+
+		double pop()
+		{
+			union{ double d; uint64_t i; } diu;
+
+			diu.i = pop<uint64_t>();
+
+			return diu.d;
+		}
 
 		template<typename V>
 			void push_vector( typename V::const_iterator begin, typename V::const_iterator end )
