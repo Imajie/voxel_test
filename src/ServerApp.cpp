@@ -101,13 +101,11 @@ void ServerApp::go(void)
 		bool newPlayer;
 		Packet recvPacket;
 		Packet respPacket;
-		ENetPacket *enet_packet;
-		uint32_t new_client_addr[2];
 
 		int32_t vecX, vecY, vecZ;
 		uint8_t mat;
 
-		if( enet_host_service( server, &event, 0 ) > 0 )
+		if( enet_host_service( server, &event, 100 ) > 0 )
 		{
 			newPlayer = false;
 
@@ -119,11 +117,11 @@ void ServerApp::go(void)
 
 					event.peer->data = NULL;
 
-					new_client_addr[0] = htonl(CONNECTION_CLIENT_ID);
-					new_client_addr[1] = htonl(event.peer->address.host);
-					enet_packet = enet_packet_create( &new_client_addr, sizeof(new_client_addr)/sizeof(uint8_t), ENET_PACKET_FLAG_RELIABLE );
+					respPacket.clear();
+					respPacket.type = CONNECTION_CLIENT_ID;
+					respPacket.push( event.peer->address.host );
 
-					enet_peer_send( event.peer, 0, enet_packet );
+					respPacket.send( event.peer, ENET_PACKET_FLAG_RELIABLE );
 					break;
 
 				case ENET_EVENT_TYPE_RECEIVE:
