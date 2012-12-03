@@ -25,10 +25,8 @@ Packet* PlayerEntity::serialize() const
 	packet->push<uint32_t>( hostAddr );
 	packet->push<uint8_t>( playerName.length() );
 
-	for( size_t i = 0; i < playerName.size(); i++ )
-	{
-		packet->push<char>( playerName[i] );
-	}
+	packet->push_vector<std::string>( playerName.begin(), playerName.end() );
+
 	return packet;
 }
 

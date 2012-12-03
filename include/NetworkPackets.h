@@ -8,6 +8,7 @@
 #define NETWORK_PACKETS_H
 
 #include <list>
+#include <vector>
 #include <cstdint>
 #include <enet/enet.h>
 #include <iostream>
@@ -111,6 +112,15 @@ class Packet {
 				}
 
 				return val;
+			}
+
+		template<typename V>
+			void push_vector( typename V::const_iterator begin, typename V::const_iterator end )
+			{
+				for( auto it = begin; it != end; it++ )
+				{
+					push(*it);
+				}
 			}
 
 	private:
