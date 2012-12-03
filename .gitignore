@@ -11,8 +11,8 @@
 *.la
 *.a
 
-# vim swap
-.*.swp
+# vim swap files
+*.swp
 
 #cmake files
 CMakeCache.txt
