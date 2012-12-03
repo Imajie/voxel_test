@@ -131,7 +131,7 @@ void ClientApp::createCamera(void)
 	mCamera->lookAt(Ogre::Vector3(0,0,-300));
 	mCamera->setNearClipDistance(5);
 
-	mCameraMan = new CameraMan(mCamera);   // create a default camera controller
+	mCameraMan = new CameraMan(mCamera, clientName, clientID);   // create a default camera controller
 
 }
 //-------------------------------------------------------------------------------------
@@ -326,9 +326,8 @@ bool ClientApp::setupNetwork(void)
 	cout << "IP Address: ";
 	cin >> ip_addr;
 
-	string userName;
 	cout << "User name: ";
-	cin >> userName;
+	cin >> clientName;
 
 	enet_address_set_host( &address, ip_addr.c_str() );
 	address.port = 4321;
@@ -374,7 +373,7 @@ bool ClientApp::setupNetwork(void)
 		// set our username
 		Packet packet;
 		packet.type = PLAYER_SET_USERNAME;
-		for( char c : userName )
+		for( char c : clientName )
 		{
 			packet.push(c);
 		}

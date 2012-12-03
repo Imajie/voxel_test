@@ -3,7 +3,8 @@
 #include <limits>
 
 /**/
-CameraMan::CameraMan(Ogre::Camera* cam) : 
+CameraMan::CameraMan(Ogre::Camera* cam, std::string cameraName, uint32_t cameraId) : 
+	PlayerEntity(cameraId, cameraName),
 	mCamera(0)
 	, mTopSpeed(150)
 	, mVelocity(Ogre::Vector3::ZERO)
@@ -26,6 +27,14 @@ CameraMan::CameraMan(Ogre::Camera* cam) :
 }
 
 CameraMan::~CameraMan() {}
+
+
+bool CameraMan::unserialize(Packet &packet)
+{
+	bool retVal = PlayerEntity::unserialize(packet);
+	mCamera->setPosition(location);
+	return retVal;
+}
 
 /*-----------------------------------------------------------------------------
   | Swaps the camera on our camera man for another camera.
@@ -73,7 +82,7 @@ void CameraMan::manualStop()
 	mVelocity = Ogre::Vector3::ZERO;
 }
 
-bool CameraMan::frameRenderingQueued(const Ogre::FrameEvent& evt)
+Ogre::Vector3 CameraMan::calculateAccelerations()
 {
 	// build our acceleration vector based on keyboard input composite
 	Ogre::Vector3 accel = Ogre::Vector3::ZERO;
@@ -90,6 +99,46 @@ bool CameraMan::frameRenderingQueued(const Ogre::FrameEvent& evt)
 	if (mGoingBack) accel -= camDirection;
 	if (mGoingRight) accel += camRight;
 	if (mGoingLeft) accel -= camRight;
+
+	return accel;
+}
+
+void CameraMan::sendMotionPacket()
+{
+	// update accelerations
+	Ogre::Vector3 accel = calculateAccelerations();
+
+	// Notify the server of the change
+	//Packet modifyPacket;
+	//modifyPacket.type = PLAYER_MOVE;
+
+	// TODO: push accel of x, y, z
+	//modifyPacket.push(vec.getX());
+	//modifyPacket.push(vec.getY());
+	//modifyPacket.push(vec.getZ());
+
+	// TODO: send packet
+	// modifyPacket.send( ClientApp::getInstance()->getServer(), ENET_PACKET_FLAG_RELIABLE );
+}
+
+void CameraMan::sendDirectionPacket()
+{
+	// Notify the server of the change
+	//Packet modifyPacket;
+	//modifyPacket.type = PLAYER_DIRECTION;
+
+	// TODO: push mCamera->yaw, mCamera->pitch
+	//modifyPacket.push(mCamera->yaw);
+	//modifyPacket.push(mCamera->pitch);
+
+	// TODO: send packet
+	// modifyPacket.send( ClientApp::getInstance()->getServer(), ENET_PACKET_FLAG_RELIABLE );
+}
+
+bool CameraMan::frameRenderingQueued(const Ogre::FrameEvent& evt)
+{
+	// update accelerations
+	Ogre::Vector3 accel = calculateAccelerations();
 
 	// if accelerating, try to reach top speed in a certain time
 	Ogre::Real topSpeed = mFastMove ? mTopSpeed * 2 : mTopSpeed;
@@ -251,6 +300,8 @@ void CameraMan::injectKeyDown(const OIS::KeyEvent& evt)
 	else if (evt.key == OIS::KC_D || evt.key == OIS::KC_RIGHT) mGoingRight = true;
 	else if (evt.key == OIS::KC_SPACE) mJump = true;
 	else if (evt.key == OIS::KC_LSHIFT) mFastMove = true;
+
+	sendMotionPacket();
 }
 
 /*-----------------------------------------------------------------------------
@@ -264,6 +315,8 @@ void CameraMan::injectKeyUp(const OIS::KeyEvent& evt)
 	else if (evt.key == OIS::KC_D || evt.key == OIS::KC_RIGHT) mGoingRight = false;
 	else if (evt.key == OIS::KC_SPACE) mJump = false;
 	else if (evt.key == OIS::KC_LSHIFT) mFastMove = false;
+
+	sendMotionPacket();
 }
 
 /*-----------------------------------------------------------------------------
@@ -273,6 +326,8 @@ void CameraMan::injectMouseMove(const OIS::MouseEvent& evt)
 {
 	mCamera->yaw(Ogre::Degree(-evt.state.X.rel * 0.15f));
 	mCamera->pitch(Ogre::Degree(-evt.state.Y.rel * 0.15f));
+
+	sendDirectionPacket();
 }
 
 /*-----------------------------------------------------------------------------

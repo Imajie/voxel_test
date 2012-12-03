@@ -9,6 +9,7 @@
 
 #include "GameObject.h"
 #include "NetworkPackets.h"
+#include "Ogre.h"
 #include <string>
 
 class PlayerEntity : public GameObject
@@ -35,9 +36,23 @@ class PlayerEntity : public GameObject
 			return hostAddr;
 		}
 
+		void setLocation(Ogre::Vector3 newLocation)
+		{
+			location = newLocation;
+		}
+
+		Ogre::Vector3 getLocation()
+		{
+			return location;
+		}
+
 	private:
 		std::string playerName;
 		uint32_t hostAddr;
+
+	protected:
+		// for the player's location
+		Ogre::Vector3 location;
 };
 
 #endif

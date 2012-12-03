@@ -37,16 +37,20 @@
 #include <OISMouse.h>
 
 #include "terrainPager.h"
+#include "PlayerEntity.h"
+
 
 /*=============================================================================
   | Utility class for controlling the camera in samples.
   =============================================================================*/
-class CameraMan
+class CameraMan : public PlayerEntity
 {
 	public:
-		CameraMan(Ogre::Camera* cam);
+		CameraMan(Ogre::Camera* cam, std::string cameraName, uint32_t cameraId);
 
 		virtual ~CameraMan();
+
+		virtual bool unserialize( Packet &packet );
 
 		/*-----------------------------------------------------------------------------
 		  | Swaps the camera on our camera man for another camera.
@@ -100,6 +104,15 @@ class CameraMan
 		virtual void injectMouseUp(const OIS::MouseEvent& evt, OIS::MouseButtonID id);
 
 	protected:
+
+		// updates accelerations based on whether a key is pressed.
+		Ogre::Vector3 calculateAccelerations();
+
+		// sends a packet to the server with the player's acceleration
+		void sendMotionPacket();
+
+		// sends a packet to the server with the player's direction
+		void sendDirectionPacket();
 
 		Ogre::Camera* mCamera;
 		Ogre::Real mTopSpeed;

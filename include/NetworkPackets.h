@@ -25,6 +25,7 @@ enum PacketType {
 	PLAYER_CONNECT,				// player joined server
 	PLAYER_DISCONNECT,			// player left server
 	PLAYER_MOVE,				// player moved
+	PLAYER_DIRECTION,			// player changed direction
 	PLAYER_SYNC,				// sync player from server
 
 	// terrain messages

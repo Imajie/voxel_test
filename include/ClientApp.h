@@ -37,6 +37,8 @@ private:
 	void doTerrainUpdate();
 	void createCursor( float radius );
 
+
+
 public:
 	static ClientApp *getInstance()
 	{
@@ -89,6 +91,7 @@ protected:
 	ENetPeer *server;
 
 	uint32_t clientID;
+	std::string clientName;
 
     Ogre::Camera* mCamera;
     Ogre::SceneManager* mSceneMgr;
