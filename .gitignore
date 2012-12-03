@@ -13,3 +13,13 @@
 
 # vim swap files
 *.swp
+
+#cmake files
+CMakeCache.txt
+CMakeFiles
+*.cmake
+Makefile
+
+# executables
+dist/bin/*
+

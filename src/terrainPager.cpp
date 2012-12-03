@@ -36,15 +36,22 @@
 boost::mutex TerrainPager::req_mutex;
 std::map<TerrainPager::chunkCoord, bool> TerrainPager::chunkProcessing;
 
-typedef struct ExtractRequestHolder
+typedef struct ClientExtractRequestHolder
 {
 	PolyVox::Region region;
 	TerrainPager::chunkCoord coord;
 	bool new_mesh;
 	PolyVox::SurfaceMesh<PolyVox::PositionMaterial> poly_mesh;
-	friend std::ostream& operator<<(std::ostream& os, const struct ExtractRequestHolder &region) { return os; }
+	friend std::ostream& operator<<(std::ostream& os, const struct ClientExtractRequestHolder &region) { return os; }
 
-} ExtractRequest;
+} ClientExtractRequest;
+
+typedef struct ServerExtractRequestHolder
+{
+	TerrainPager::chunkCoord coord;
+	ENetPeer *peer;
+	friend std::ostream& operator<<(std::ostream& os, const struct ServerExtractRequestHolder &region) { return os; }
+} ServerExtractRequest;
 
 TerrainPager::TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node, BaseApplication* app ) :
 	app(app), volume(&volume_load, &volume_unload, CHUNK_SIZE), manObj(NULL), lastPosition(0,0,0), 
@@ -75,6 +82,17 @@ PolyVox::Material8 TerrainPager::getVoxelAt( const PolyVox::Vector3DInt32 &vec )
 	return volume.getVoxelAt( vec );
 }
 
+void TerrainPager::processUpdate( Packet &packet )
+{
+	int32_t vecX = packet.pop<int32_t>();
+	int32_t vecY = packet.pop<int32_t>();
+	int32_t vecZ = packet.pop<int32_t>();
+
+	uint8_t mat = packet.pop<uint8_t>();
+
+	volume.setVoxelAt(PolyVox::Vector3DInt32(vecX, vecY, vecZ), PolyVox::Material8(mat));
+}
+
 void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Material8 mat )
 {
 	boost::mutex::scoped_lock lock(req_mutex);
@@ -86,6 +104,19 @@ void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Mater
 	}
 	volume.setVoxelAt( vec, mat );
 
+#ifdef CLIENT_SIDE
+	// Notify the server of the change
+	Packet modifyPacket;
+	modifyPacket.type = TERRAIN_UPDATE;
+
+	modifyPacket.push(vec.getX());
+	modifyPacket.push(vec.getY());
+	modifyPacket.push(vec.getZ());
+	modifyPacket.push(mat.getMaterial());
+
+	modifyPacket.send( ClientApp::getInstance()->getServer(), ENET_PACKET_FLAG_RELIABLE );
+#endif
+	
 	// mark region and neighbors as dirty
 	chunkCoord coord = toChunkCoord(vec);
 
@@ -96,7 +127,7 @@ void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Mater
 		chunkDirty[ std::make_pair(coord.first-1, coord.second) ] = true;
 	}
 
-	if( vec.getX()+1 % CHUNK_SIZE == 0 )
+	if( (vec.getX()+1) % CHUNK_SIZE == 0 )
 	{
 		chunkDirty[ std::make_pair(coord.first+1, coord.second) ] = true;
 	}
@@ -106,7 +137,7 @@ void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Mater
 		chunkDirty[ std::make_pair(coord.first, coord.second-1) ] = true;
 	}
 
-	if( vec.getZ()+1 % CHUNK_SIZE == 0 )
+	if( (vec.getZ()+1) % CHUNK_SIZE == 0 )
 	{
 		chunkDirty[ std::make_pair(coord.first, coord.second+1) ] = true;
 	}
@@ -123,11 +154,20 @@ bool TerrainPager::canHandleRequest (const Ogre::WorkQueue::Request *req, const 
 
 Ogre::WorkQueue::Response* TerrainPager::handleRequest (const Ogre::WorkQueue::Request *req, const Ogre::WorkQueue *srcQ)
 {
-	ExtractRequest *data = req->getData().get<ExtractRequest*>();
+#ifdef CLIENT_SIDE
+	ClientExtractRequest *data = req->getData().get<ClientExtractRequest*>();
 
 	extract( data->region, data->poly_mesh );
 
 	usleep(1000);
+#else // SERVER_SIDE
+	ServerExtractRequest data = Ogre::any_cast<ServerExtractRequest>(req->getData());
+
+	Packet resp;
+	serialize( data.coord, resp );
+	
+	resp.send( data.peer, ENET_PACKET_FLAG_RELIABLE );
+#endif
 	
 	return new Ogre::WorkQueue::Response( req, true, req->getData() );
 }
@@ -143,37 +183,45 @@ bool TerrainPager::canHandleResponse (const Ogre::WorkQueue::Response *res, cons
 
 void TerrainPager::handleResponse (const Ogre::WorkQueue::Response *res, const Ogre::WorkQueue *srcQ)
 {
+#ifdef CLIENT_SIDE
 	// lock
 	boost::mutex::scoped_lock lock(resp_mutex);
-	ExtractRequest *req = res->getRequest()->getData().get<ExtractRequest*>();
+	ClientExtractRequest *req = res->getRequest()->getData().get<ClientExtractRequest*>();
 
-	if( req->new_mesh )
+	int beginIndex = req->poly_mesh.m_vecLodRecords[0].beginIndex;
+	int endIndex = req->poly_mesh.m_vecLodRecords[0].endIndex;
+
+	if( endIndex != beginIndex )
 	{
-		// add chunk to map
-		chunkToMesh[req->coord] = manObj->getNumSections();
+		if( req->new_mesh )
+		{
+			// add chunk to map
+			chunkToMesh[req->coord] = manObj->getNumSections();
 
-		// add chunk to map
-		manObj->begin("VoxelTexture", Ogre::RenderOperation::OT_TRIANGLE_LIST);
+			// add chunk to map
+			manObj->begin("VoxelTexture", Ogre::RenderOperation::OT_TRIANGLE_LIST);
+		}
+		else
+		{
+			manObj->beginUpdate( chunkToMesh[req->coord] );
+		}
+
+		genMesh( req->region, req->poly_mesh );
+
+		manObj->end();
 	}
-	else
-	{
-		manObj->beginUpdate( chunkToMesh[req->coord] );
-	}
-
-	genMesh( req->region, req->poly_mesh );
-
-	manObj->end();
 
 	chunkProcessing[req->coord] = false;
 	chunkDirty[req->coord] = false;
 	delete req;
+#endif
 }
 
 void TerrainPager::regenerateChunk( chunkCoord coord )
 {
 	PolyVox::Region region = toRegion(coord);
 
-	ExtractRequest *req = new ExtractRequest;
+	ClientExtractRequest *req = new ClientExtractRequest;
 	req->region = region;
 	req->coord = coord;
 	req->new_mesh = false;
@@ -303,16 +351,14 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 // TODO: for now just send 1 byte per voxel
 
 // serialize for a chunk
-Packet* TerrainPager::serialize( chunkCoord coord )
+void TerrainPager::serialize( chunkCoord coord, Packet &packet )
 {
 	boost::mutex::scoped_lock lock(req_mutex);
 
-	Packet *packet = new Packet();
+	packet.type = TERRAIN_RESPONSE;
 
-	packet->type = TERRAIN_RESPONSE;
-
-	uint32_t coord_int[2] = { htonl(coord.first),  htonl(coord.second) };
-	packet->data = std::vector<char>((uint8_t*)coord_int, (uint8_t*)coord_int+sizeof(coord_int)/sizeof(uint8_t));
+	packet.push<int32_t>( coord.first );
+	packet.push<int32_t>( coord.second );
 
 	PolyVox::Region region( toRegion( coord ) );
 
@@ -322,29 +368,26 @@ Packet* TerrainPager::serialize( chunkCoord coord )
 		{
 			for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
 			{
-				packet->data.push_back(volume.getVoxelAt( PolyVox::Vector3DInt32(x, y, z) ).getMaterial());
+				packet.push<uint8_t>(volume.getVoxelAt( PolyVox::Vector3DInt32(x, y, z) ).getMaterial());
 			}
 		}
 	}
-
-	return packet;
 }
 
 // extract data from the packet
-int TerrainPager::unserialize( Packet *packet )
+int TerrainPager::unserialize( Packet &packet )
 {
 	boost::mutex::scoped_lock lock(req_mutex);
 
 	// undo the above
 	// first extract the coord
-	uint32_t *coord_data = (uint32_t*)&packet->data[0];
 
-	chunkCoord coord = std::make_pair( (int32_t)ntohl(coord_data[0]), (int32_t)ntohl(coord_data[1]) );
+	int32_t coordX = packet.pop<int32_t>();
+	int32_t coordZ = packet.pop<int32_t>();
+	chunkCoord coord = std::make_pair( coordX, coordZ );
 	PolyVox::Region region( toRegion( coord ) );
 
 	std::cout << "Unserialize chunk: (" << coord.first << ", " << coord.second << ")" << std::endl;
-
-	int buffer_offset = 2*sizeof(int32_t);
 
 	// now extract the voxels
 	for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )
@@ -353,7 +396,7 @@ int TerrainPager::unserialize( Packet *packet )
 		{
 			for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
 			{
-				volume.setVoxelAt( x, y, z, PolyVox::Material8(packet->data[buffer_offset++]) );
+				volume.setVoxelAt( x, y, z, PolyVox::Material8(packet.pop<uint8_t>()) );
 			}
 		}
 	}
@@ -373,15 +416,21 @@ int TerrainPager::unserialize( Packet *packet )
 	return 0;
 }
 
-Packet* TerrainPager::request( Packet *packet )
+void TerrainPager::request( Packet &req, ENetPeer *peer )
 {
-	uint32_t *coord_data = (uint32_t*)&packet->data[0];
+	int32_t coordX = req.pop<int32_t>();
+	int32_t coordZ = req.pop<int32_t>();
 
-	chunkCoord coord = std::make_pair( (int32_t)ntohl(coord_data[0]), (int32_t)ntohl(coord_data[1]) );
+	chunkCoord coord = std::make_pair( coordX, coordZ );
+
+	ServerExtractRequest request;
+
+	request.coord = coord;
+	request.peer = peer;
+	
 	std::cout << "Terrain Request received: (" << coord.first << ", " << coord.second << ")" << std::endl;
-	Packet *resp = serialize( coord );
-	std::cout << "Request handled" << std::endl;
-	return resp;
+
+	extractQueue->addRequest(queueChannel, TERRAIN_EXTRACT_TYPE, Ogre::Any(request));
 }
 
 const PolyVox::Region TerrainPager::toRegion( const chunkCoord &coord )
@@ -455,8 +504,9 @@ void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Materia
 		Packet terrainRequest;
 
 		terrainRequest.type = TERRAIN_REQUEST;
-		uint32_t coord_int[2] = { htonl(coord.first), htonl(coord.second) };
-		terrainRequest.data = std::vector<char>( (uint8_t*)coord_int, (uint8_t*)coord_int + sizeof(coord_int)/sizeof(uint8_t) );
+
+		terrainRequest.push<int32_t>(coord.first);
+		terrainRequest.push<int32_t>(coord.second);
 
 		// send to server
 		terrainRequest.send( ClientApp::getInstance()->getServer(), ENET_PACKET_FLAG_RELIABLE );

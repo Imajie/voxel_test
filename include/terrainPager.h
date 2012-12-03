@@ -40,14 +40,15 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 		static void volume_unload( const PolyVox::ConstVolumeProxy<PolyVox::Material8> &vol, const PolyVox::Region &region );
 
 		// serialization
-		Packet* serialize( chunkCoord coord );
-		int unserialize( Packet *packet );
-		Packet* request( Packet *packet );
+		void serialize( chunkCoord coord, Packet &packet );
+		int unserialize( Packet &packet );
+		void request( Packet &req, ENetPeer *peer );
 
 		// volume interface
 		PolyVox::Region getEnclosingRegion() { return volume.getEnclosingRegion(); }
 		PolyVox::Material8 getVoxelAt( const PolyVox::Vector3DInt32 &vec );
 		void setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Material8 mat );
+		void processUpdate( Packet &packet );
 
 		// lock
 		void lock() { mutex.lock(); }
@@ -58,6 +59,17 @@ class TerrainPager : public Ogre::WorkQueue::RequestHandler, public Ogre::WorkQu
 
 		// convert chunk coordinates into region
 		static const PolyVox::Region toRegion( const chunkCoord &coord );
+
+		const void dumpDebug()
+		{
+			printf("chunkToMesh:\n");
+			for( auto m : chunkToMesh )
+			{
+				printf("\t(%i, %i)->%i\n", m.first.first, m.first.second, m.second);
+			}
+			printf("\n");
+		}
+
 	private:
 		BaseApplication *app;
 

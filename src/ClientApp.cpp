@@ -36,46 +36,6 @@ void ClientApp::doTerrainUpdate()
 	terrain->regenerateMesh( mCamera->getPosition() );
 }
 
-void createSphereInVolume(TerrainPager* volData, float fRadius, PolyVox::Vector3DInt32 _center, uint8_t material)
-{
-	PolyVox::Vector3DFloat center( _center.getX(), _center.getY(), _center.getZ() );
-
-	//This vector hold the position of the center of the volume
-	PolyVox::Region volRegion(volData->getEnclosingRegion());
-
-	//This three-level for loop iterates over every voxel in the volume
-	for (int z = max(center.getZ() - fRadius, (float)volRegion.getLowerCorner().getZ()); z < min(center.getZ() + fRadius, (float)volRegion.getUpperCorner().getZ()); z++)
-	{
-		for (int y = max(center.getY() - fRadius, (float)volRegion.getLowerCorner().getY()); y < min(center.getY() + fRadius, (float)volRegion.getUpperCorner().getY()); y++)
-		{
-			for (int x = max(center.getX() - fRadius, (float)volRegion.getLowerCorner().getX()); x < min(center.getX() + fRadius, (float)volRegion.getUpperCorner().getX()); x++)
-			{
-				//Store our current position as a vector...
-				PolyVox::Vector3DFloat v3dCurrentPos(x,y,z);
-				//And compute how far the current position is from the center of the volume
-				float fDistToCenter = (v3dCurrentPos - center).length();
-
-				//If the current voxel is less than 'radius' units from the center then we make it solid.
-				if(fDistToCenter <= fRadius)
-				{
-					PolyVox::Vector3DInt32 point(x,y,z);
-
-					if( volRegion.containsPoint(point) )
-					{
-						//Get the old voxel
-						PolyVox::Material<uint8_t>  voxel = volData->getVoxelAt(point);
-
-						voxel.setMaterial(material);
-
-						//Wrte the voxel value into the volume
-						volData->setVoxelAt( point, voxel);
-					}
-				}
-			}
-		}
-	}
-}
-
 void ClientApp::createCursor( float radius )
 {
 	radius *= VOXEL_SCALE;
@@ -282,7 +242,6 @@ void ClientApp::syncWithServer(void)
 	// request entity sync
 	Packet packet;
 	packet.type = CONNECTION_REQUEST_SYNC;
-	packet.data.clear();
 
 	packet.send(server, ENET_PACKET_FLAG_RELIABLE);
 
@@ -310,7 +269,6 @@ void ClientApp::syncWithServer(void)
 				{
 					for( auto player: players )
 					{
-
 						if( player.getId() == syncPlayer.getId() )
 						{
 							player.unserialize( entityPacket );
@@ -383,6 +341,8 @@ bool ClientApp::setupNetwork(void)
 		exit(EXIT_FAILURE);
 	}
 
+	clientID = 0;
+
 	// wait for connection to complete
 	ENetEvent event;
 	if( enet_host_service( client, &event, 5000 ) > 0 &&
@@ -390,10 +350,34 @@ bool ClientApp::setupNetwork(void)
 	{
 		cout << "Connection to server succeeded" << endl;
 
+		if( enet_host_service( client, &event, 5000 ) > 0 &&
+				event.type == ENET_EVENT_TYPE_RECEIVE  )
+		{
+			uint32_t *data = (uint32_t*)event.packet->data;
+
+			if( event.packet->dataLength == 2*sizeof(uint32_t) )
+			{
+				if( ntohl(data[0]) == CONNECTION_CLIENT_ID )
+				{
+					clientID = ntohl(data[1]);
+
+					cout << "Got ID( " << clientID << " ) from server" << endl;
+				}
+			}
+			if( clientID == 0 )
+			{
+				cout << "Failed to receive ID from server" << endl;
+				return false;
+			}
+		}
+
 		// set our username
 		Packet packet;
 		packet.type = PLAYER_SET_USERNAME;
-		packet.data = std::vector<char>(userName.begin(), userName.end());
+		for( char c : userName )
+		{
+			packet.push(c);
+		}
 
 		packet.send(server, ENET_PACKET_FLAG_RELIABLE);
 		enet_host_flush( client );
@@ -448,6 +432,8 @@ void ClientApp::go(void)
 
 					switch( recvPacket.type )
 					{
+						case PLAYER_SYNC:
+							break;
 						case PLAYER_CONNECT:
 							break;
 						case PLAYER_DISCONNECT:
@@ -459,9 +445,11 @@ void ClientApp::go(void)
 							// not used in client
 							break;
 						case TERRAIN_RESPONSE:
-							terrain->unserialize( &recvPacket );
+							terrain->unserialize( recvPacket );
 							break;
 						case TERRAIN_UPDATE:
+							// update this pixel, trust the server
+							terrain->processUpdate( recvPacket );
 							break;
 
 						default:
@@ -512,7 +500,9 @@ bool ClientApp::setup(void)
 	if( !BaseApplication::setup() )
 		return false;
 
-	setupNetwork();
+	if( !setupNetwork() )
+		return false;
+
 	setupResources();
 
 	bool carryOn = configure();
@@ -675,61 +665,9 @@ bool ClientApp::keyPressed( const OIS::KeyEvent& arg )
 			mDetailsPanel->hide();
 		}
 	}
-	else if (arg.key == OIS::KC_T)   // cycle polygon rendering mode
+	else if(arg.key == OIS::KC_F1)	// debug
 	{
-		Ogre::String newVal;
-		Ogre::TextureFilterOptions tfo;
-		unsigned int aniso;
-
-		switch (mDetailsPanel->getParamValue(9).asUTF8()[0])
-		{
-			case 'B':
-				newVal = "Trilinear";
-				tfo = Ogre::TFO_TRILINEAR;
-				aniso = 1;
-				break;
-			case 'T':
-				newVal = "Anisotropic";
-				tfo = Ogre::TFO_ANISOTROPIC;
-				aniso = 8;
-				break;
-			case 'A':
-				newVal = "None";
-				tfo = Ogre::TFO_NONE;
-				aniso = 1;
-				break;
-			default:
-				newVal = "Bilinear";
-				tfo = Ogre::TFO_BILINEAR;
-				aniso = 1;
-		}
-
-		Ogre::MaterialManager::getSingleton().setDefaultTextureFiltering(tfo);
-		Ogre::MaterialManager::getSingleton().setDefaultAnisotropy(aniso);
-		mDetailsPanel->setParamValue(9, newVal);
-	}
-	else if (arg.key == OIS::KC_P)   // cycle polygon rendering mode
-	{
-		Ogre::String newVal;
-		Ogre::PolygonMode pm;
-
-		switch (mCamera->getPolygonMode())
-		{
-			case Ogre::PM_SOLID:
-				newVal = "Wireframe";
-				pm = Ogre::PM_WIREFRAME;
-				break;
-			case Ogre::PM_WIREFRAME:
-				newVal = "Points";
-				pm = Ogre::PM_POINTS;
-				break;
-			default:
-				newVal = "Solid";
-				pm = Ogre::PM_SOLID;
-		}
-
-		mCamera->setPolygonMode(pm);
-		mDetailsPanel->setParamValue(10, newVal);
+		terrain->dumpDebug();
 	}
 	else if(arg.key == OIS::KC_F5)   // refresh all textures
 	{
@@ -760,11 +698,13 @@ bool ClientApp::keyPressed( const OIS::KeyEvent& arg )
 		{
 			if( arg.key == OIS::KC_E )
 			{
-				createSphereInVolume( terrain, MODIFY_RADIUS, result.previousVoxel, 1 );
+				std::cout << "Setting " << result.previousVoxel.getX() << ", " << result.previousVoxel.getZ() << std::endl;
+				terrain->setVoxelAt( result.previousVoxel, 1 );
 			}
 			else if( arg.key == OIS::KC_R)
 			{
-				createSphereInVolume( terrain, MODIFY_RADIUS, result.intersectionVoxel, 0 );
+				std::cout << "Clearing " << result.intersectionVoxel.getX() << ", " << result.intersectionVoxel.getZ() << std::endl;
+				terrain->setVoxelAt( result.intersectionVoxel, 0 );
 			}
 
 			doTerrainUpdate();

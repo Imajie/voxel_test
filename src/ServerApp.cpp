@@ -100,7 +100,12 @@ void ServerApp::go(void)
 		std::string playerName;
 		bool newPlayer;
 		Packet recvPacket;
-		Packet *pkt;
+		Packet respPacket;
+		ENetPacket *enet_packet;
+		uint32_t new_client_addr[2];
+
+		int32_t vecX, vecY, vecZ;
+		uint8_t mat;
 
 		if( enet_host_service( server, &event, 0 ) > 0 )
 		{
@@ -113,6 +118,12 @@ void ServerApp::go(void)
 					cout << "New connection request from " << event.peer->address.host << ":" << event.peer->address.port << endl;
 
 					event.peer->data = NULL;
+
+					new_client_addr[0] = htonl(CONNECTION_CLIENT_ID);
+					new_client_addr[1] = htonl(event.peer->address.host);
+					enet_packet = enet_packet_create( &new_client_addr, sizeof(new_client_addr)/sizeof(uint8_t), ENET_PACKET_FLAG_RELIABLE );
+
+					enet_peer_send( event.peer, 0, enet_packet );
 					break;
 
 				case ENET_EVENT_TYPE_RECEIVE:
@@ -142,7 +153,12 @@ void ServerApp::go(void)
 
 							}
 
-							event.peer->data = strdup( (char*)&recvPacket.data[0] );
+							playerName.clear();
+							while( recvPacket.getSize() )
+							{
+								playerName.push_back( recvPacket.pop<char>() );
+							}
+							event.peer->data = strdup( playerName.c_str() );
 
 							cout << (char*)event.peer->data << endl;
 
@@ -153,11 +169,10 @@ void ServerApp::go(void)
 								players.push_back( PlayerEntity(event.peer->address.host, playerName) );
 
 								// broadcast to all clients
-								Packet joinPacket;
-								joinPacket.type = PLAYER_CONNECT;
-								joinPacket.data = std::vector<char>(playerName.begin(), playerName.end());
+								Packet *joinPacket = players[players.size()-1].serialize();
+								joinPacket->type = PLAYER_SYNC;
 
-								joinPacket.broadcast(server, ENET_PACKET_FLAG_RELIABLE);
+								joinPacket->broadcast(server, ENET_PACKET_FLAG_RELIABLE);
 							}
 
 							break;
@@ -169,14 +184,49 @@ void ServerApp::go(void)
 							break;
 
 						case TERRAIN_REQUEST:
-							pkt = terrain->request( &recvPacket );
-							pkt->send( event.peer, ENET_PACKET_FLAG_RELIABLE );
-							delete pkt;
+							terrain->request( recvPacket, event.peer );
 							break;
 						case TERRAIN_RESPONSE:
 							// not used in server
 							break;
 						case TERRAIN_UPDATE:
+							// update this pixel
+							vecX = recvPacket.pop<int32_t>();
+							vecY = recvPacket.pop<int32_t>();
+							vecZ = recvPacket.pop<int32_t>();
+
+							mat = recvPacket.pop<uint8_t>();
+
+							// TODO verify change can occur
+							if( true )
+							{
+								terrain->setVoxelAt(PolyVox::Vector3DInt32(vecX, vecY, vecZ), PolyVox::Material8(mat));
+
+								// notify clients of the change
+								respPacket.clear();
+								respPacket.type = TERRAIN_UPDATE;
+
+								respPacket.push(vecX);
+								respPacket.push(vecY);
+								respPacket.push(vecZ);
+								respPacket.push(mat);
+
+								respPacket.broadcast( server, ENET_PACKET_FLAG_RELIABLE );
+							}
+							else
+							{
+								// notify client that that change didn't in fact happen
+								respPacket.clear();
+								respPacket.type = TERRAIN_UPDATE;
+
+								respPacket.push(vecX);
+								respPacket.push(vecY);
+								respPacket.push(vecZ);
+								respPacket.push(terrain->getVoxelAt(PolyVox::Vector3DInt32(vecX, vecY, vecZ)).getMaterial());
+
+								respPacket.send( event.peer, ENET_PACKET_FLAG_RELIABLE );
+							}
+
 							break;
 
 						default:
@@ -198,7 +248,7 @@ void ServerApp::go(void)
 							dropPacket.type = PLAYER_DISCONNECT;
 							for( char c : playerName )
 							{
-								dropPacket.data.push_back(c);
+								dropPacket.push(c);
 							}
 							
 							dropPacket.broadcast(server, ENET_PACKET_FLAG_RELIABLE);
