@@ -90,7 +90,7 @@ void TerrainPager::processUpdate( Packet &packet )
 
 	uint8_t mat = packet.pop<uint8_t>();
 
-	volume.setVoxelAt(PolyVox::Vector3DInt32(vecX, vecY, vecZ), PolyVox::Material8(mat));
+	setVoxelAt(PolyVox::Vector3DInt32(vecX, vecY, vecZ), PolyVox::Material8(mat));
 }
 
 void TerrainPager::setVoxelAt( const PolyVox::Vector3DInt32 &vec, PolyVox::Material8 mat )
