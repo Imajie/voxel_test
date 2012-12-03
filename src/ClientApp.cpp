@@ -352,13 +352,14 @@ bool ClientApp::setupNetwork(void)
 		if( enet_host_service( client, &event, 5000 ) > 0 &&
 				event.type == ENET_EVENT_TYPE_RECEIVE  )
 		{
-			uint32_t *data = (uint32_t*)event.packet->data;
+			Packet idPacket;
+			idPacket.unserialize( event.packet->data, event.packet->dataLength );
 
-			if( event.packet->dataLength == 2*sizeof(uint32_t) )
+			if( idPacket.getSize() == 2*sizeof(int32_t) )
 			{
-				if( ntohl(data[0]) == CONNECTION_CLIENT_ID )
+				if( idPacket.pop<int32_t>() == CONNECTION_CLIENT_ID )
 				{
-					clientID = ntohl(data[1]);
+					clientID = idPacket.pop<uint32_t>();
 
 					cout << "Got ID( " << clientID << " ) from server" << endl;
 				}
@@ -373,10 +374,7 @@ bool ClientApp::setupNetwork(void)
 		// set our username
 		Packet packet;
 		packet.type = PLAYER_SET_USERNAME;
-		for( char c : clientName )
-		{
-			packet.push(c);
-		}
+		packet.push_vector<std::string>(userName.begin(), userName.end());
 
 		packet.send(server, ENET_PACKET_FLAG_RELIABLE);
 		enet_host_flush( client );
