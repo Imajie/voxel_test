@@ -355,9 +355,9 @@ bool ClientApp::setupNetwork(void)
 			Packet idPacket;
 			idPacket.unserialize( event.packet->data, event.packet->dataLength );
 
-			if( idPacket.getSize() == 2*sizeof(int32_t) )
+			if( idPacket.getSize() == sizeof(int32_t) )
 			{
-				if( idPacket.pop<int32_t>() == CONNECTION_CLIENT_ID )
+				if( idPacket.type == CONNECTION_CLIENT_ID )
 				{
 					clientID = idPacket.pop<uint32_t>();
 
