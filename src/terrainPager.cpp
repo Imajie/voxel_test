@@ -59,14 +59,20 @@ TerrainPager::TerrainPager( Ogre::SceneManager *sceneMgr, Ogre::SceneNode *node,
 {
 
 	volume.setCompressionEnabled(true);
-	volume.setMaxNumberOfBlocksInMemory( 1024 );
 
+#ifdef CLIENT_SIDE
+	volume.setMaxNumberOfBlocksInMemory( 1024 );
 	volume.prefetch( PolyVox::Region( PolyVox::Vector3DInt32( -CHUNK_DIST*CHUNK_SIZE, 0, -CHUNK_DIST*CHUNK_SIZE ), 
 				PolyVox::Vector3DInt32( CHUNK_DIST*CHUNK_SIZE, CHUNK_SIZE-1, CHUNK_DIST*CHUNK_SIZE ) ) );
 
-#ifdef CLIENT_SIDE
 	manObj = sceneMgr->createManualObject("terrain");
 	node->attachObject(manObj);
+#else
+	// Server needs to prefetch much more
+	volume.setMaxNumberOfBlocksInMemory( 1024*1024 );
+	volume.prefetch( PolyVox::Region( PolyVox::Vector3DInt32( -CHUNK_DIST*CHUNK_SIZE*2, 0, -CHUNK_DIST*CHUNK_SIZE*2 ), 
+				PolyVox::Vector3DInt32( CHUNK_DIST*CHUNK_SIZE*2, CHUNK_SIZE-1, CHUNK_DIST*CHUNK_SIZE*2 ) ) );
+
 #endif
 
 	queueChannel = extractQueue->getChannel("Terrain/Page");
@@ -365,16 +371,47 @@ void TerrainPager::serialize( chunkCoord coord, Packet &packet )
 
 	PolyVox::Region region( toRegion( coord ) );
 
+	std::vector<std::pair<uint8_t, uint16_t> > chunkData;
+
+	uint8_t lastMat = 0;
+	uint16_t matCount = 0;
 	for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )
 	{
-		for( int y = region.getLowerCorner().getY(); y <= region.getUpperCorner().getY(); y++ )
+		for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
 		{
-			for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
+			for( int y = region.getLowerCorner().getY(); y <= region.getUpperCorner().getY(); y++ )
 			{
-				packet.push<uint8_t>(volume.getVoxelAt( PolyVox::Vector3DInt32(x, y, z) ).getMaterial());
+				uint8_t newMat = volume.getVoxelAt( PolyVox::Vector3DInt32(x, y, z) ).getMaterial();
+				if( lastMat != newMat )
+				{
+					if( matCount > 0 )
+					{
+						// Push the material, and then how many in a row
+						chunkData.push_back( std::make_pair( lastMat, matCount ) );
+					}
+
+					matCount = 0;
+					lastMat = newMat;
+				}
+				matCount++;
 			}
 		}
 	}
+
+	if( matCount > 0 )
+	{
+		// Push the material, and then how many in a row
+		chunkData.push_back( std::make_pair( lastMat, matCount ) );
+	}
+
+	packet.push<uint16_t>( chunkData.size() );
+
+	for( auto c : chunkData )
+	{
+		packet.push<uint8_t>( c.first );
+		packet.push<uint16_t>( c.second );
+	}
+
 }
 
 // extract data from the packet
@@ -392,14 +429,37 @@ int TerrainPager::unserialize( Packet &packet )
 
 	std::cout << "Unserialize chunk: (" << coord.first << ", " << coord.second << ")" << std::endl;
 
+	uint16_t elementCount = packet.pop<uint16_t>();
+
 	// now extract the voxels
+	uint8_t lastMat = 0;
+	uint16_t matCount = 0;
+
 	for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )
 	{
-		for( int y = region.getLowerCorner().getY(); y <= region.getUpperCorner().getY(); y++ )
+		for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
 		{
-			for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
+			for( int y = region.getLowerCorner().getY(); y <= region.getUpperCorner().getY(); y++ )
 			{
-				volume.setVoxelAt( x, y, z, PolyVox::Material8(packet.pop<uint8_t>()) );
+				if( matCount == 0 )
+				{
+					if( elementCount > 0 )
+					{
+						lastMat = packet.pop<uint8_t>();
+						matCount = packet.pop<uint16_t>();
+
+						elementCount--;
+					}
+					else
+					{
+						std::cerr << "BAD CHUNK UPDATE PACKET" << std::endl << std::endl;
+						return -1;
+					}
+				}
+
+				volume.setVoxelAt( x, y, z, lastMat );
+
+				matCount--;
 			}
 		}
 	}
@@ -468,7 +528,6 @@ void TerrainPager::volume_load( const PolyVox::ConstVolumeProxy<PolyVox::Materia
 	}
 
 #ifdef SERVER_SIDE
-	std::cout << "Server load chunk: (" << coord.first << ", " << coord.second << ")" << std::endl;
 	// generate the new chunk
 	// TODO saving/loading
 	for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )

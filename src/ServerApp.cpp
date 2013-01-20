@@ -88,7 +88,9 @@ void ServerApp::go(void)
 	if (!setup())
 		return;
 
+	cout << "Server pre-loading map" << endl;
 	terrain = new TerrainPager(NULL, NULL, this);
+	cout << "Map pre-loaded" << endl;
 	
 	while( !quit )
 	{
