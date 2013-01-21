@@ -357,8 +357,6 @@ void TerrainPager::genMesh( const PolyVox::Region &region, const PolyVox::Surfac
 	}
 }
 
-// TODO: for now just send 1 byte per voxel
-
 // serialize for a chunk
 void TerrainPager::serialize( chunkCoord coord, Packet &packet )
 {
@@ -371,15 +369,16 @@ void TerrainPager::serialize( chunkCoord coord, Packet &packet )
 
 	PolyVox::Region region( toRegion( coord ) );
 
-	std::vector<std::pair<uint8_t, uint16_t> > chunkData;
+	std::vector<std::pair<uint8_t, uint32_t> > chunkData;
 
 	uint8_t lastMat = 0;
-	uint16_t matCount = 0;
-	for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )
+	uint32_t matCount = 0;
+
+	for( int y = region.getLowerCorner().getY(); y <= region.getUpperCorner().getY(); y++ )
 	{
 		for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
 		{
-			for( int y = region.getLowerCorner().getY(); y <= region.getUpperCorner().getY(); y++ )
+			for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )
 			{
 				uint8_t newMat = volume.getVoxelAt( PolyVox::Vector3DInt32(x, y, z) ).getMaterial();
 				if( lastMat != newMat )
@@ -409,7 +408,7 @@ void TerrainPager::serialize( chunkCoord coord, Packet &packet )
 	for( auto c : chunkData )
 	{
 		packet.push<uint8_t>( c.first );
-		packet.push<uint16_t>( c.second );
+		packet.push<uint32_t>( c.second );
 	}
 
 }
@@ -433,20 +432,20 @@ int TerrainPager::unserialize( Packet &packet )
 
 	// now extract the voxels
 	uint8_t lastMat = 0;
-	uint16_t matCount = 0;
+	uint32_t matCount = 0;
 
-	for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )
+	for( int y = region.getLowerCorner().getY(); y <= region.getUpperCorner().getY(); y++ )
 	{
 		for( int z = region.getLowerCorner().getZ(); z <= region.getUpperCorner().getZ(); z++ )
 		{
-			for( int y = region.getLowerCorner().getY(); y <= region.getUpperCorner().getY(); y++ )
+			for( int x = region.getLowerCorner().getX(); x <= region.getUpperCorner().getX(); x++ )
 			{
 				if( matCount == 0 )
 				{
 					if( elementCount > 0 )
 					{
 						lastMat = packet.pop<uint8_t>();
-						matCount = packet.pop<uint16_t>();
+						matCount = packet.pop<uint32_t>();
 
 						elementCount--;
 					}
@@ -463,6 +462,7 @@ int TerrainPager::unserialize( Packet &packet )
 			}
 		}
 	}
+
 	// the chunk has changed
 	chunkProcessing[coord] = false;
 	chunkProcessing[std::make_pair( coord.first+1, coord.second ) ] = false;
